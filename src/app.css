@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-bg-base: #0e0e12;
+  --color-bg-surface: #16161c;
+  --color-bg-elevated: #1e1e26;
+  --color-bg-overlay: #26262f;
+
+  --color-border: #2a2a35;
+  --color-border-strong: #3a3a48;
+
+  --color-text-primary: #e8e8f0;
+  --color-text-secondary: #9898b0;
+  --color-text-muted: #5a5a70;
+
+  --color-accent: #f47521;
+  --color-accent-hover: #ff8c3a;
+  --color-accent-muted: rgba(244, 117, 33, 0.15);
+
+  --color-blue: #3b82f6;
+  --color-blue-muted: rgba(59, 130, 246, 0.15);
+
+  --color-green: #22c55e;
+  --color-green-muted: rgba(34, 197, 94, 0.15);
+
+  --color-red: #ef4444;
+  --color-red-muted: rgba(239, 68, 68, 0.15);
+
+  --color-yellow: #eab308;
+  --color-yellow-muted: rgba(234, 179, 8, 0.15);
+
+  --color-purple: #a855f7;
+  --color-purple-muted: rgba(168, 85, 247, 0.15);
+
+  /* Fonts */
+  --font-sans: "Inter", "Noto Sans JP", system-ui, sans-serif;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(244, 117, 33, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Selection */
+::selection {
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for theme */
+* {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
