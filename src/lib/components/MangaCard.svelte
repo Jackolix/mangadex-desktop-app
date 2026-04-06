@@ -1,6 +1,5 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import Badge from './ui/Badge.svelte';
   import type { MangaWithCover } from '$lib/api/types';
   import { getMangaTitle } from '$lib/api/mangadex';
   import { cn } from '$lib/utils';
@@ -22,18 +21,17 @@
     lg: { card: 'w-44', img: 'h-64' },
   };
 
-  const ratingColors: Record<string, string> = {
-    safe: 'green',
-    suggestive: 'yellow',
-    erotica: 'red',
-    pornographic: 'red',
+  const statusBadgeClass: Record<string, string> = {
+    ongoing: 'bg-green-600/90 text-white',
+    completed: 'bg-blue-600/90 text-white',
+    hiatus: 'bg-yellow-500/90 text-white',
+    cancelled: 'bg-red-600/90 text-white',
   };
 
-  const statusColors: Record<string, string> = {
-    ongoing: 'green',
-    completed: 'blue',
-    hiatus: 'yellow',
-    cancelled: 'red',
+  const ratingBadgeClass: Record<string, string> = {
+    suggestive: 'bg-yellow-500/90 text-white',
+    erotica: 'bg-red-600/90 text-white',
+    pornographic: 'bg-red-600/90 text-white',
   };
 
   let imgError = $state(false);
@@ -80,16 +78,16 @@
 
     <!-- Status badge -->
     <div class="absolute top-1.5 left-1.5">
-      <Badge variant={statusColors[manga.attributes.status] as 'green' | 'blue' | 'yellow' | 'red'} size="sm">
+      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm {statusBadgeClass[manga.attributes.status] ?? 'bg-black/70 text-white'}">
         {manga.attributes.status}
-      </Badge>
+      </span>
     </div>
 
     {#if showRating && manga.attributes.contentRating !== 'safe'}
       <div class="absolute top-1.5 right-1.5">
-        <Badge variant={ratingColors[manga.attributes.contentRating] as 'yellow' | 'red'} size="sm">
+        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm {ratingBadgeClass[manga.attributes.contentRating] ?? 'bg-black/70 text-white'}">
           {manga.attributes.contentRating}
-        </Badge>
+        </span>
       </div>
     {/if}
   </div>

@@ -249,7 +249,7 @@ export interface DownloadEntry {
   chapterTitle?: string;
   volume?: string;
   chapterNum?: string;
-  status: 'pending' | 'downloading' | 'completed' | 'error';
+  status: 'queued' | 'pending' | 'downloading' | 'completed' | 'error';
   path?: string;
   totalPages: number;
   downloadedPages: number;

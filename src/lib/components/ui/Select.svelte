@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { cn } from '$lib/utils';
-
   interface Props {
     class?: string;
     options: { value: string; label: string }[];
@@ -16,10 +14,7 @@
   bind:value
   {disabled}
   {onchange}
-  class={cn(
-    'h-9 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] transition-colors cursor-pointer pr-8',
-    className
-  )}
+  class="h-9 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] transition-colors cursor-pointer pr-8 {className}"
 >
   {#each options as option}
     <option value={option.value}>{option.label}</option>

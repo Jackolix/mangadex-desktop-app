@@ -27,6 +27,7 @@ export interface Settings {
   showChapterTitles: boolean;
   showContentRating: boolean;
   compactMode: boolean;
+  showExternalChapters: boolean;
 }
 
 const defaults: Settings = {
@@ -43,6 +44,7 @@ const defaults: Settings = {
   showChapterTitles: true,
   showContentRating: true,
   compactMode: false,
+  showExternalChapters: false,
 };
 
 let settings = $state<Settings>({ ...defaults });

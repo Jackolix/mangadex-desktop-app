@@ -338,6 +338,22 @@ export function getCoverUrl(mangaId: string, fileName: string, size?: 256 | 512)
   return `${COVER_BASE}/${mangaId}/${fileName}${suffix}`;
 }
 
+/** Returns a map of volume number (string) → cover URL for a manga. */
+export async function getMangaVolumeCoverUrls(mangaId: string): Promise<Map<string, string>> {
+  const res = await request<ApiResponse<Array<{ attributes: { volume: string | null; fileName: string } }>>>(
+    '/cover',
+    { params: { 'manga[]': mangaId, limit: 100, order: { volume: 'asc' } } }
+  );
+  const map = new Map<string, string>();
+  for (const cover of res.data) {
+    const vol = cover.attributes.volume;
+    if (vol != null) {
+      map.set(vol, getCoverUrl(mangaId, cover.attributes.fileName));
+    }
+  }
+  return map;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function enrichManga(manga: Manga): MangaWithCover {

@@ -24,8 +24,19 @@ async function init() {
     const refresh = await s.get<string>('refresh_token');
     if (access && refresh) {
       setTokens(access, refresh);
-      const me = await getMe();
-      user = me;
+      try {
+        const me = await getMe();
+        user = me;
+      } catch {
+        // Access token likely expired — try refreshing before giving up
+        const refreshed = await tryRefresh();
+        if (refreshed) {
+          const me = await getMe();
+          user = me;
+        } else {
+          throw new Error('Session refresh failed');
+        }
+      }
     }
   } catch {
     clearTokens();

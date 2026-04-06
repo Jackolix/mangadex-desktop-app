@@ -211,6 +211,22 @@
             <span class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform {settingsStore.value.showContentRating ? 'translate-x-5' : 'translate-x-0.5'}"></span>
           </button>
         </div>
+
+        <div class="flex items-center justify-between px-5 py-4">
+          <div>
+            <p class="text-sm text-[var(--color-text-primary)]">Show External Chapters</p>
+            <p class="text-xs text-[var(--color-text-muted)] mt-0.5">Show chapters hosted on external sites (cannot be downloaded)</p>
+          </div>
+          <button
+            aria-label="Toggle external chapters"
+            onclick={() => settingsStore.update({ showExternalChapters: !settingsStore.value.showExternalChapters })}
+            class="relative w-10 h-5 rounded-full transition-colors {settingsStore.value.showExternalChapters ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-overlay)]'}"
+            role="switch"
+            aria-checked={settingsStore.value.showExternalChapters}
+          >
+            <span class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform {settingsStore.value.showExternalChapters ? 'translate-x-5' : 'translate-x-0.5'}"></span>
+          </button>
+        </div>
       </div>
     </section>
 

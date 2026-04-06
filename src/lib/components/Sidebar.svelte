@@ -41,8 +41,8 @@
   class="w-14 flex-shrink-0 flex flex-col items-center py-3 gap-1 bg-[var(--color-bg-surface)] border-r border-[var(--color-border)]"
 >
   <!-- Logo -->
-  <a href="/" class="mb-3 flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-white font-bold text-sm shadow-[var(--shadow-sm)] hover:bg-[var(--color-accent-hover)] transition-colors">
-    M
+  <a href="/" class="mb-3 flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] overflow-hidden shadow-[var(--shadow-sm)] hover:opacity-80 transition-opacity">
+    <img src="/mangadex-favicon.png" alt="MangaDex" class="w-full h-full object-contain" />
   </a>
 
   <div class="flex flex-col gap-1 flex-1">

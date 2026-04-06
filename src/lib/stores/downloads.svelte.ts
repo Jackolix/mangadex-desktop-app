@@ -12,9 +12,25 @@ async function getDb() {
   return db;
 }
 
+const MAX_CONCURRENT_CHAPTERS = 3;
+
+type BatchChapter = Omit<DownloadEntry, 'status' | 'downloadedPages' | 'createdAt'>;
+
+interface MangaBatch {
+  mangaId: string;
+  mangaTitle: string;
+  chapters: BatchChapter[];
+}
+
 // State
 let downloads = $state<DownloadEntry[]>([]);
 let activeDownloads = $state<Set<string>>(new Set());
+let chapterQueue: Array<{ mangaId: string; chapterId: string }> = [];
+
+// Manga-level batch queue
+let pendingBatches: MangaBatch[] = [];
+let mangaBatchQueue = $state<Array<{ mangaId: string; mangaTitle: string }>>([]);
+let activeBatch: { mangaId: string; pendingIds: Set<string> } | null = null;
 
 async function init() {
   await loadDownloads();
@@ -45,6 +61,39 @@ async function loadDownloads() {
   }));
 }
 
+async function queueMangaBatch(mangaId: string, mangaTitle: string, allChapters: BatchChapter[]): Promise<number> {
+  const toDownload = allChapters.filter(
+    (ch) => !isDownloaded(ch.chapterId) && !isDownloading(ch.chapterId)
+  );
+  if (toDownload.length === 0) return 0;
+
+  if (!activeBatch) {
+    // No active batch — start immediately
+    activeBatch = { mangaId, pendingIds: new Set(toDownload.map((c) => c.chapterId)) };
+    for (const ch of toDownload) {
+      await queueDownload(ch);
+    }
+  } else {
+    // Another batch is running — enqueue this one
+    pendingBatches.push({ mangaId, mangaTitle, chapters: toDownload });
+    mangaBatchQueue = pendingBatches.map((b) => ({ mangaId: b.mangaId, mangaTitle: b.mangaTitle }));
+  }
+  return toDownload.length;
+}
+
+async function startNextBatch() {
+  const next = pendingBatches.shift();
+  mangaBatchQueue = pendingBatches.map((b) => ({ mangaId: b.mangaId, mangaTitle: b.mangaTitle }));
+  if (!next) {
+    activeBatch = null;
+    return;
+  }
+  activeBatch = { mangaId: next.mangaId, pendingIds: new Set(next.chapters.map((c) => c.chapterId)) };
+  for (const ch of next.chapters) {
+    await queueDownload(ch);
+  }
+}
+
 async function queueDownload(entry: Omit<DownloadEntry, 'status' | 'downloadedPages' | 'createdAt'>) {
   const database = await getDb();
   const now = Date.now();
@@ -66,7 +115,16 @@ async function queueDownload(entry: Omit<DownloadEntry, 'status' | 'downloadedPa
   ];
 
   // Don't await — run in background
-  startDownload(entry.mangaId, entry.chapterId);
+  if (activeDownloads.size < MAX_CONCURRENT_CHAPTERS) {
+    startDownload(entry.mangaId, entry.chapterId);
+  } else {
+    chapterQueue.push({ mangaId: entry.mangaId, chapterId: entry.chapterId });
+    // Update DB and state to reflect queued status
+    database.execute("UPDATE downloads SET status = 'queued' WHERE chapter_id = ?", [entry.chapterId]);
+    downloads = downloads.map((d) =>
+      d.chapterId === entry.chapterId ? { ...d, status: 'queued' } : d
+    );
+  }
 }
 
 async function startDownload(mangaId: string, chapterId: string) {
@@ -100,37 +158,46 @@ async function startDownload(mangaId: string, chapterId: string) {
       d.chapterId === chapterId ? { ...d, totalPages: total } : d
     );
 
-    // Download each page
-    for (let i = 0; i < pageFilenames.length; i++) {
-      const filename = pageFilenames[i];
+    // Download pages in parallel with a concurrency limit
+    const CONCURRENCY = 5;
+    let completedCount = 0;
+
+    async function downloadPage(i: number, filename: string) {
       const url = `${server.baseUrl}/${quality}/${server.chapter.hash}/${filename}`;
       const ext = filename.split('.').pop() ?? 'jpg';
       const pagePath = `${dir}/${String(i).padStart(3, '0')}.${ext}`;
 
-      // Skip pages already saved (resume support)
       const pageExists = await exists(pagePath, { baseDir: BaseDirectory.AppData });
       if (!pageExists) {
-        console.log(`[download] Fetching page ${i + 1}/${total}: ${url}`);
         const resp = await tauriFetch(url);
-        if (!resp.ok) throw new Error(`Page ${i + 1} fetch failed: HTTP ${resp.status} for ${url}`);
+        if (!resp.ok) throw new Error(`Page ${i + 1} fetch failed: HTTP ${resp.status}`);
         await writeFile(pagePath, new Uint8Array(await resp.arrayBuffer()), {
           baseDir: BaseDirectory.AppData,
         });
-        console.log(`[download] Saved page ${i + 1} → ${pagePath}`);
       }
 
-      // Update progress in memory every page, DB every 5 pages
-      const downloaded = i + 1;
+      completedCount++;
       downloads = downloads.map((d) =>
-        d.chapterId === chapterId ? { ...d, downloadedPages: downloaded } : d
+        d.chapterId === chapterId ? { ...d, downloadedPages: completedCount } : d
       );
-      if (downloaded % 5 === 0 || downloaded === total) {
+      if (completedCount % 5 === 0 || completedCount === total) {
         await database.execute(
           'UPDATE downloads SET downloaded_pages = ? WHERE chapter_id = ?',
-          [downloaded, chapterId]
+          [completedCount, chapterId]
         );
       }
     }
+
+    // Run with bounded concurrency using a pool of workers
+    const queue = pageFilenames.map((filename, i) => ({ i, filename }));
+    async function worker() {
+      while (queue.length > 0) {
+        const item = queue.shift();
+        if (!item) break;
+        await downloadPage(item.i, item.filename);
+      }
+    }
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 
     // Mark completed
     const now = Date.now();
@@ -155,6 +222,20 @@ async function startDownload(mangaId: string, chapterId: string) {
   } finally {
     activeDownloads.delete(chapterId);
     activeDownloads = new Set(activeDownloads);
+
+    // Track batch completion
+    if (activeBatch) {
+      activeBatch.pendingIds.delete(chapterId);
+      if (activeBatch.pendingIds.size === 0) {
+        // This batch is fully done — start next batch (it will queue its own chapters)
+        await startNextBatch();
+        return;
+      }
+    }
+
+    // Start next queued chapter if any
+    const next = chapterQueue.shift();
+    if (next) startDownload(next.mangaId, next.chapterId);
   }
 }
 
@@ -187,9 +268,11 @@ function getDownload(chapterId: string): DownloadEntry | undefined {
 export const downloadsStore = {
   get downloads() { return downloads; },
   get activeDownloads() { return activeDownloads; },
+  get mangaBatchQueue() { return mangaBatchQueue; },
   init,
   loadDownloads,
   queueDownload,
+  queueMangaBatch,
   deleteDownload,
   isDownloaded,
   isDownloading,

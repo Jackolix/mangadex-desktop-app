@@ -3,9 +3,13 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   import Input from '$lib/components/ui/Input.svelte';
-  import { READING_STATUS_LABELS } from '$lib/utils';
+  import EpubExportModal from '$lib/components/EpubExportModal.svelte';
+  import { READING_STATUS_LABELS, formatChapter } from '$lib/utils';
   import { goto } from '$app/navigation';
-  import type { LibraryEntry } from '$lib/api/types';
+  import { getManga, getMangaChapters } from '$lib/api/mangadex';
+  import { downloadsStore } from '$lib/stores/downloads.svelte';
+  import { toast } from 'svelte-sonner';
+  import type { LibraryEntry, MangaWithCover, Chapter } from '$lib/api/types';
 
   let filterStatus = $state('all');
   let searchQuery = $state('');
@@ -37,15 +41,19 @@
     })
   );
 
+  // EPUB modal
+  let epubModal = $state<{ manga: MangaWithCover; chapters: Chapter[] } | null>(null);
+
   // Context menu
   let contextMenu = $state<{ entry: LibraryEntry; x: number; y: number } | null>(null);
+  let contextMenuLoading = $state(false);
 
   function openContextMenu(e: MouseEvent, entry: LibraryEntry) {
     e.preventDefault();
     e.stopPropagation();
     // Clamp to viewport so menu never goes off-screen
     const menuW = 192;
-    const menuH = 280;
+    const menuH = 340;
     const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
     const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
     contextMenu = { entry, x, y };
@@ -65,6 +73,63 @@
     if (!contextMenu) return;
     await library.removeFromLibrary(contextMenu.entry.id);
     closeContextMenu();
+  }
+
+  async function fetchChapters(entry: LibraryEntry): Promise<{ manga: MangaWithCover; chapters: Chapter[] } | null> {
+    contextMenuLoading = true;
+    try {
+      const [manga, { data: chapters }] = await Promise.all([
+        getManga(entry.id),
+        getMangaChapters(entry.id, { limit: 500, order: { volume: 'asc', chapter: 'asc' } }),
+      ]);
+      return { manga, chapters };
+    } catch {
+      toast.error('Failed to load chapters');
+      return null;
+    } finally {
+      contextMenuLoading = false;
+    }
+  }
+
+  async function openEpubModal() {
+    if (!contextMenu) return;
+    const entry = contextMenu.entry;
+    closeContextMenu();
+    const result = await fetchChapters(entry);
+    if (result) epubModal = result;
+  }
+
+  async function downloadAll() {
+    if (!contextMenu) return;
+    const entry = contextMenu.entry;
+    closeContextMenu();
+    const result = await fetchChapters(entry);
+    if (!result) return;
+
+    const eligible = result.chapters.filter((ch) => !ch.attributes.externalUrl);
+    const count = await downloadsStore.queueMangaBatch(
+      entry.id,
+      entry.title,
+      eligible.map((ch) => ({
+        chapterId: ch.id,
+        mangaId: entry.id,
+        mangaTitle: entry.title,
+        chapterTitle: formatChapter(ch.attributes.volume, ch.attributes.chapter, ch.attributes.title),
+        volume: ch.attributes.volume ?? undefined,
+        chapterNum: ch.attributes.chapter ?? undefined,
+        totalPages: ch.attributes.pages,
+        path: undefined,
+      }))
+    );
+    if (count > 0) {
+      const queued = downloadsStore.mangaBatchQueue.length > 0;
+      toast.success(queued
+        ? `"${entry.title}" queued for download (${count} chapters)`
+        : `Queued ${count} chapters for download`
+      );
+    } else {
+      toast.info('All chapters already downloaded');
+    }
   }
 </script>
 
@@ -181,6 +246,15 @@
   </div>
 </div>
 
+{#if epubModal}
+  <EpubExportModal
+    manga={epubModal.manga}
+    chapters={epubModal.chapters}
+    open={true}
+    onclose={() => (epubModal = null)}
+  />
+{/if}
+
 <!-- Context menu -->
 {#if contextMenu}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -215,6 +289,30 @@
           {option.label}
         </button>
       {/each}
+    </div>
+
+    <!-- Actions -->
+    <div class="border-t border-[var(--color-border)] py-1">
+      <button
+        onclick={downloadAll}
+        disabled={contextMenuLoading}
+        class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-overlay)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50"
+      >
+        <svg class="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Download All
+      </button>
+      <button
+        onclick={openEpubModal}
+        disabled={contextMenuLoading}
+        class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-overlay)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50"
+      >
+        <svg class="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+        </svg>
+        Export EPUB
+      </button>
     </div>
 
     <!-- Danger zone -->
