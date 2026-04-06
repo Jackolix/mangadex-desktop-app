@@ -16,6 +16,7 @@
   let manga = $state<MangaWithCover | null>(null);
   let chapters = $state<Chapter[]>([]);
   let readChapterIds = $state<Set<string>>(new Set());
+  let continueChapterId = $state<string | null>(null);
   let loadingManga = $state(true);
   let loadingChapters = $state(true);
   let showAllChapters = $state(false);
@@ -27,20 +28,58 @@
     loadingChapters = true;
     manga = null;
     chapters = [];
+    continueChapterId = null;
 
     getManga(id)
       .then((m) => (manga = m))
       .finally(() => (loadingManga = false));
 
-    getMangaChapters(id, { limit: 500, order: { volume: 'desc', chapter: 'desc' } })
-      .then(({ data }) => (chapters = data))
+    getMangaChapters(id, { limit: 500, order: { volume: 'asc', chapter: 'asc' } })
+      .then(({ data }) => {
+        chapters = data;
+        // Resolve continue chapter now that we have both chapters + progress
+        resolveContinueChapter(data);
+      })
       .finally(() => (loadingChapters = false));
 
-    // Load progress
+    // Load progress then resolve continue chapter
     library.loadProgress(id).then((progress) => {
       readChapterIds = new Set(progress.filter((p) => p.completed).map((p) => p.chapterId));
+      resolveContinueChapter(chapters, progress);
     });
   });
+
+  function resolveContinueChapter(
+    chapterList: typeof chapters,
+    progress?: import('$lib/api/types').ReadingProgress[]
+  ) {
+    if (!chapterList.length) return;
+
+    const prog = progress ?? library.getProgressForManga(mangaId);
+    if (!prog || !prog.length) return;
+
+    // Find the most recently interacted-with chapter (highest readAt)
+    const latest = [...prog].sort((a, b) => b.readAt - a.readAt)[0];
+
+    if (!latest.completed) {
+      // Resume the in-progress chapter
+      continueChapterId = latest.chapterId;
+      return;
+    }
+
+    // Last read chapter was completed — find the next unread one
+    const lastReadIdx = chapterList.findIndex((c) => c.id === latest.chapterId);
+    const completedIds = new Set(prog.filter((p) => p.completed).map((p) => p.chapterId));
+    // Look for the first chapter after the last read one that isn't completed
+    for (let i = lastReadIdx + 1; i < chapterList.length; i++) {
+      if (!completedIds.has(chapterList[i].id)) {
+        continueChapterId = chapterList[i].id;
+        return;
+      }
+    }
+    // All caught up — offer to re-read from start
+    continueChapterId = null;
+  }
 
   const isInLibrary = $derived(library.isInLibrary(mangaId));
   const title = $derived(manga ? getMangaTitle(manga) : '');
@@ -74,7 +113,7 @@
   }
 
   function getFirstChapter(): Chapter | undefined {
-    return chapters[chapters.length - 1];
+    return chapters[0];
   }
 </script>
 
@@ -131,11 +170,14 @@
 
           <div class="flex gap-2 mt-1">
             {#if chapters.length > 0}
-              <Button variant="accent" onclick={() => goto(`/manga/${mangaId}/read/${getFirstChapter()?.id}`)}>
+              <Button
+                variant="accent"
+                onclick={() => goto(`/manga/${mangaId}/read/${continueChapterId ?? chapters[0].id}`)}
+              >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5v14l11-7z" />
                 </svg>
-                Read First
+                {continueChapterId ? 'Continue Reading' : 'Read First'}
               </Button>
             {/if}
             <Button variant={isInLibrary ? 'accent' : 'outline'} loading={addingToLibrary} onclick={toggleLibrary}>

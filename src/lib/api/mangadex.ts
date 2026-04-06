@@ -49,6 +49,13 @@ async function request<T>(
         for (const v of value) {
           searchParams.append(`${key}[]`, String(v));
         }
+      } else if (typeof value === 'object') {
+        // Nested objects like order: { followedCount: 'desc' } → order[followedCount]=desc
+        for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+          if (nestedValue !== undefined && nestedValue !== null) {
+            searchParams.append(`${key}[${nestedKey}]`, String(nestedValue));
+          }
+        }
       } else {
         searchParams.append(key, String(value));
       }

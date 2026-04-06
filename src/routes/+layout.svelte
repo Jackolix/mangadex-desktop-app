@@ -12,14 +12,15 @@
   interface Props { children: Snippet; }
   let { children }: Props = $props();
 
-  // Initialize all stores
+  // Initialize stores sequentially to avoid SQLite "database is locked" errors
   $effect(() => {
-    Promise.all([
-      auth.init(),
-      library.load(),
-      settingsStore.init(),
-      downloadsStore.init(),
-    ]);
+    async function initAll() {
+      await settingsStore.init();
+      await auth.init();
+      await library.load();
+      await downloadsStore.init();
+    }
+    initAll();
 
     return () => downloadsStore.cleanup();
   });

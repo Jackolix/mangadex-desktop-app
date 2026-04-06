@@ -104,6 +104,10 @@ function getChapterProgress(mangaId: string, chapterId: string): ReadingProgress
   return (progress[mangaId] ?? []).find((p) => p.chapterId === chapterId);
 }
 
+function getProgressForManga(mangaId: string): ReadingProgress[] {
+  return progress[mangaId] ?? [];
+}
+
 export const library = {
   get entries() { return entries; },
   get loading() { return loading; },
@@ -115,4 +119,5 @@ export const library = {
   saveProgress,
   loadProgress,
   getChapterProgress,
+  getProgressForManga,
 };

@@ -25,6 +25,7 @@
   const scanlationGroup = chapter.relationships.find((r) => r.type === 'scanlation_group');
   const groupName = (scanlationGroup?.attributes as { name?: string })?.name;
 
+  const isExternal = $derived(!!chapter.attributes.externalUrl);
   const isDownloaded = $derived(downloadsStore.isDownloaded(chapter.id));
   const isDownloading = $derived(downloadsStore.isDownloading(chapter.id));
   const downloadEntry = $derived(downloadsStore.getDownload(chapter.id));
@@ -95,7 +96,20 @@
     <!-- Language badge -->
     <Badge variant="default" size="sm">{chapter.attributes.translatedLanguage.toUpperCase()}</Badge>
 
-    {#if isDownloaded}
+    {#if isExternal}
+      <a
+        href={chapter.attributes.externalUrl!}
+        target="_blank"
+        rel="noopener noreferrer"
+        onclick={(e) => e.stopPropagation()}
+        class="flex items-center justify-center w-7 h-7 rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-overlay)] hover:text-[var(--color-text-primary)] transition-all"
+        title="External chapter — opens in browser"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+        </svg>
+      </a>
+    {:else if isDownloaded}
       <button
         onclick={handleDeleteDownload}
         class="flex items-center justify-center w-7 h-7 rounded-[var(--radius-sm)] text-[var(--color-green)] hover:bg-[var(--color-red-muted)] hover:text-[var(--color-red)] transition-all"

@@ -7,11 +7,43 @@
     "core:default",
     "opener:default",
     "fs:default",
-    "fs:allow-app-read",
-    "fs:allow-app-write",
-    "fs:allow-app-meta",
+    "fs:allow-app-read-recursive",
+    "fs:allow-app-write-recursive",
+    "fs:allow-app-meta-recursive",
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$APP/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$APP/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "$APP/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$APP/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$APP/**" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [{ "path": "$APP/**" }, { "path": "$APPDATA/**" }]
+    },
     "http:default",
-    "http:allow-fetch",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        { "url": "https://api.mangadex.org/**" },
+        { "url": "https://*.mangadex.org/**" },
+        { "url": "https://*.mangadex.network/**" },
+        { "url": "https://uploads.mangadex.org/**" }
+      ]
+    },
     "store:default",
     "store:allow-get",
     "store:allow-set",
