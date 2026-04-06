@@ -38,6 +38,7 @@
 </script>
 
 <nav
+  data-tauri-drag-region
   class="w-14 flex-shrink-0 flex flex-col items-center py-3 gap-1 bg-[var(--color-bg-surface)] border-r border-[var(--color-border)]"
 >
   <!-- Logo -->

@@ -224,12 +224,20 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
     }
   }
 
+  // Clear the map to free memory before compression
+  pageDataMap.clear();
+  
+  // Hint to garbage collector that we're done with large data structures
+  if (typeof globalThis !== 'undefined' && (globalThis as any).gc) {
+    (globalThis as any).gc();
+  }
+
   onProgress?.('Compressing…', 90);
 
   const result = await zip.generateAsync({
     type: 'uint8array',
     compression: 'DEFLATE',
-    compressionOptions: { level: 6 },
+    compressionOptions: { level: 3 }, // Reduced from 6 to 3 for lower memory usage
   });
 
   onProgress?.('Done', 100);

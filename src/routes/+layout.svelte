@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import Sidebar from '$lib/components/Sidebar.svelte';
+  import WindowControls from '$lib/components/WindowControls.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { library } from '$lib/stores/library.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
@@ -36,13 +37,17 @@
   const isReader = $derived(page.url.pathname.includes('/read/'));
 </script>
 
-<div class="flex h-screen w-screen overflow-hidden">
+<div class="relative flex h-screen w-screen overflow-hidden">
+  <!-- Invisible drag region across the top of the window -->
+  <div data-tauri-drag-region class="fixed top-0 left-0 right-0 h-[30px] z-[9998]" />
+
   {#if !isReader}
     <Sidebar />
   {/if}
   <main class="flex-1 overflow-hidden">
     {@render children()}
   </main>
+  <WindowControls />
 </div>
 
 <Toaster

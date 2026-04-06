@@ -249,9 +249,31 @@
   onmousemove={handleMouseMove}
   role="presentation"
 >
-  <!-- Top bar -->
+  <!-- Page info at top (non-interactive, can stay at top) -->
   <div
-    class="absolute top-0 left-0 right-0 z-50 flex items-center gap-4 px-4 py-3 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300"
+    class="absolute top-2 left-0 right-0 z-40 flex items-center justify-center gap-3 pointer-events-none transition-opacity duration-300"
+    class:opacity-0={!showControls}
+  >
+    <span class="text-white text-sm bg-black/60 px-3 py-1 rounded-full backdrop-blur-sm">
+      Page {currentPage + 1} / {pages.length}
+    </span>
+    {#if zoom > 1}
+      <button
+        onclick={resetZoom}
+        class="text-xs text-[var(--color-accent)] bg-[var(--color-accent-muted)] px-2 py-0.5 rounded-full hover:bg-[var(--color-accent)] hover:text-white transition-colors pointer-events-auto"
+        title="Reset zoom (Ctrl+0)"
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+    {/if}
+    {#if isOffline}
+      <span class="text-xs text-[var(--color-green)] bg-[var(--color-green-muted)] px-2 py-1 rounded-full">Offline</span>
+    {/if}
+  </div>
+
+  <!-- Control bar (interactive buttons below drag area) -->
+  <div
+    class="absolute top-8 left-0 right-0 z-50 flex items-center gap-4 px-4 py-3 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300"
     class:opacity-0={!showControls}
     class:pointer-events-none={!showControls}
   >
@@ -265,24 +287,7 @@
       Back
     </button>
 
-    <div class="flex-1 flex items-center justify-center gap-3">
-      <span class="text-white/70 text-sm">
-        Page {currentPage + 1} / {pages.length}
-      </span>
-      {#if zoom > 1}
-        <button
-          onclick={resetZoom}
-          class="text-xs text-[var(--color-accent)] bg-[var(--color-accent-muted)] px-2 py-0.5 rounded-full hover:bg-[var(--color-accent)] hover:text-white transition-colors"
-          title="Reset zoom (Ctrl+0)"
-        >
-          {Math.round(zoom * 100)}%
-        </button>
-      {/if}
-    </div>
-
-    {#if isOffline}
-      <span class="text-xs text-[var(--color-green)] bg-[var(--color-green-muted)] px-2 py-1 rounded-full">Offline</span>
-    {/if}
+    <div class="flex-1"></div>
 
     <!-- Chapter nav -->
     <div class="flex items-center gap-1">

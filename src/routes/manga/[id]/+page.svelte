@@ -236,7 +236,7 @@
     </div>
   {:else if manga}
     <!-- Banner -->
-    <div class="relative h-52 overflow-hidden">
+    <div class="relative h-40 overflow-hidden">
       {#if manga.coverUrl}
         <img src={manga.coverUrl} alt="" class="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-20" />
       {/if}
@@ -244,7 +244,7 @@
       <!-- Back button over banner -->
       <button
         onclick={() => history.back()}
-        class="absolute top-4 left-6 z-10 flex items-center gap-1.5 text-xs text-white/80 hover:text-white transition-colors bg-black/30 hover:bg-black/50 backdrop-blur-sm px-2.5 py-1.5 rounded-[var(--radius-md)]"
+        class="absolute top-9 left-6 z-10 flex items-center gap-1.5 text-xs text-white/80 hover:text-white transition-colors bg-black/30 hover:bg-black/50 backdrop-blur-sm px-2.5 py-1.5 rounded-[var(--radius-md)]"
       >
         <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
@@ -254,7 +254,7 @@
     </div>
 
     <!-- Content -->
-    <div class="relative -mt-24 px-8 pb-8">
+    <div class="relative -mt-20 px-8 pb-8">
       <div class="flex gap-6">
         <!-- Cover -->
         <div class="flex-shrink-0 w-36 h-52 rounded-[var(--radius-lg)] overflow-hidden shadow-[var(--shadow-lg)] bg-[var(--color-bg-overlay)]">
@@ -264,7 +264,7 @@
         </div>
 
         <!-- Info -->
-        <div class="flex flex-col gap-3 pt-16 min-w-0">
+        <div class="flex flex-col gap-3 pt-12 min-w-0">
           <h1 class="text-xl font-bold text-[var(--color-text-primary)] leading-tight">{title}</h1>
           {#if authorName}
             <p class="text-sm text-[var(--color-text-muted)]">by {authorName}</p>
