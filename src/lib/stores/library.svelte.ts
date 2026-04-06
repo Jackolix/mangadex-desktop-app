@@ -1,4 +1,15 @@
 import Database from '@tauri-apps/plugin-sql';
+import {
+  hasToken,
+  getAllFollowedManga,
+  getAllReadingStatuses,
+  followManga,
+  unfollowManga,
+  setMangaReadingStatus,
+  getReadChapters,
+  markChaptersRead,
+  getMangaTitle,
+} from '$lib/api/mangadex';
 import type { LibraryEntry, ReadingProgress } from '$lib/api/types';
 
 let db: Awaited<ReturnType<typeof Database.load>> | null = null;
@@ -12,6 +23,7 @@ async function getDb() {
 let entries = $state<LibraryEntry[]>([]);
 let progress = $state<Record<string, ReadingProgress[]>>({});
 let loading = $state(false);
+let syncing = $state(false);
 
 async function load() {
   loading = true;
@@ -29,6 +41,39 @@ async function load() {
   }
 }
 
+async function syncFromMangaDex() {
+  if (!hasToken()) return;
+  syncing = true;
+  try {
+    const [followed, statuses] = await Promise.all([
+      getAllFollowedManga(),
+      getAllReadingStatuses(),
+    ]);
+
+    if (followed.length === 0) return;
+
+    const db = await getDb();
+    const now = Date.now();
+
+    for (const manga of followed) {
+      const title = getMangaTitle(manga);
+      const status = statuses[manga.id] ?? 'reading';
+      await db.execute(
+        `INSERT INTO library (id, title, cover_url, status, content_rating, tags, added_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at`,
+        [manga.id, title, manga.coverUrl ?? null, status, manga.attributes.contentRating, JSON.stringify([]), now, now]
+      );
+    }
+
+    await load();
+  } catch (e) {
+    console.error('MangaDex sync failed:', e);
+  } finally {
+    syncing = false;
+  }
+}
+
 async function addToLibrary(entry: Omit<LibraryEntry, 'addedAt' | 'updatedAt'>) {
   const db = await getDb();
   const now = Date.now();
@@ -37,6 +82,12 @@ async function addToLibrary(entry: Omit<LibraryEntry, 'addedAt' | 'updatedAt'>) 
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [entry.id, entry.title, entry.coverUrl ?? null, entry.status, entry.contentRating, JSON.stringify(entry.tags ?? []), now, now]
   );
+  if (hasToken()) {
+    await Promise.all([
+      followManga(entry.id).catch(() => {}),
+      setMangaReadingStatus(entry.id, entry.status).catch(() => {}),
+    ]);
+  }
   await load();
 }
 
@@ -44,6 +95,9 @@ async function removeFromLibrary(mangaId: string) {
   const db = await getDb();
   await db.execute('DELETE FROM library WHERE id = ?', [mangaId]);
   entries = entries.filter((e) => e.id !== mangaId);
+  if (hasToken()) {
+    await unfollowManga(mangaId).catch(() => {});
+  }
 }
 
 async function updateStatus(mangaId: string, status: string) {
@@ -54,6 +108,9 @@ async function updateStatus(mangaId: string, status: string) {
     [status, now, mangaId]
   );
   entries = entries.map((e) => e.id === mangaId ? { ...e, status: status as LibraryEntry['status'], updatedAt: now } : e);
+  if (hasToken()) {
+    await setMangaReadingStatus(mangaId, status).catch(() => {});
+  }
 }
 
 function isInLibrary(mangaId: string): boolean {
@@ -69,7 +126,6 @@ async function saveProgress(mangaId: string, chapterId: string, page: number, co
      VALUES (?, ?, ?, ?, ?)`,
     [mangaId, chapterId, page, completed ? 1 : 0, now]
   );
-  // Update in-memory
   const existing = progress[mangaId] ?? [];
   const idx = existing.findIndex((p) => p.chapterId === chapterId);
   const entry: ReadingProgress = { mangaId, chapterId, page, completed, readAt: now };
@@ -79,6 +135,10 @@ async function saveProgress(mangaId: string, chapterId: string, page: number, co
     existing.push(entry);
   }
   progress = { ...progress, [mangaId]: existing };
+
+  if (completed && hasToken()) {
+    await markChaptersRead(mangaId, [chapterId]).catch(() => {});
+  }
 }
 
 async function loadProgress(mangaId: string): Promise<ReadingProgress[]> {
@@ -89,15 +149,39 @@ async function loadProgress(mangaId: string): Promise<ReadingProgress[]> {
     'SELECT manga_id, chapter_id, page, completed, read_at FROM reading_progress WHERE manga_id = ?',
     [mangaId]
   );
-  const result = rows.map((r) => ({
+  const local = rows.map((r) => ({
     mangaId: r.manga_id,
     chapterId: r.chapter_id,
     page: r.page,
     completed: !!r.completed,
     readAt: r.read_at,
   }));
-  progress = { ...progress, [mangaId]: result };
-  return result;
+
+  // Merge read chapters from API
+  if (hasToken()) {
+    try {
+      const remoteReadIds = await getReadChapters(mangaId);
+      const localCompletedIds = new Set(local.filter((p) => p.completed).map((p) => p.chapterId));
+      const toAdd = remoteReadIds.filter((id) => !localCompletedIds.has(id));
+
+      if (toAdd.length > 0) {
+        const now = Date.now();
+        for (const chapterId of toAdd) {
+          await db.execute(
+            `INSERT OR IGNORE INTO reading_progress (manga_id, chapter_id, page, completed, read_at)
+             VALUES (?, ?, 0, 1, ?)`,
+            [mangaId, chapterId, now]
+          );
+          local.push({ mangaId, chapterId, page: 0, completed: true, readAt: now });
+        }
+      }
+    } catch {
+      // non-fatal — local progress is still valid
+    }
+  }
+
+  progress = { ...progress, [mangaId]: local };
+  return local;
 }
 
 function getChapterProgress(mangaId: string, chapterId: string): ReadingProgress | undefined {
@@ -111,7 +195,9 @@ function getProgressForManga(mangaId: string): ReadingProgress[] {
 export const library = {
   get entries() { return entries; },
   get loading() { return loading; },
+  get syncing() { return syncing; },
   load,
+  syncFromMangaDex,
   addToLibrary,
   removeFromLibrary,
   updateStatus,

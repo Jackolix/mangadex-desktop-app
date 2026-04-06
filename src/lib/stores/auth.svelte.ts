@@ -20,31 +20,33 @@ let initialized = $state(false);
 async function init() {
   try {
     const s = await getStore();
-    const session = await s.get<string>('session');
-    const refresh = await s.get<string>('refresh');
-    if (session && refresh) {
-      setTokens(session, refresh);
+    const access = await s.get<string>('access_token');
+    const refresh = await s.get<string>('refresh_token');
+    if (access && refresh) {
+      setTokens(access, refresh);
       const me = await getMe();
       user = me;
     }
   } catch {
     clearTokens();
     const s = await getStore();
-    await s.delete('session');
-    await s.delete('refresh');
+    await s.delete('access_token');
+    await s.delete('refresh_token');
   } finally {
     initialized = true;
   }
 }
 
-async function login(username: string, password: string) {
+async function login(username: string, password: string, clientId: string, clientSecret: string) {
   loading = true;
   error = null;
   try {
-    const res = await apiLogin(username, password);
+    const res = await apiLogin(username, password, clientId, clientSecret);
     const s = await getStore();
-    await s.set('session', res.token.session);
-    await s.set('refresh', res.token.refresh);
+    await s.set('access_token', res.access_token);
+    await s.set('refresh_token', res.refresh_token);
+    await s.set('client_id', clientId);
+    await s.set('client_secret', clientSecret);
     await s.save();
     const me = await getMe();
     user = me;
@@ -60,8 +62,10 @@ async function login(username: string, password: string) {
 async function logout() {
   await apiLogout();
   const s = await getStore();
-  await s.delete('session');
-  await s.delete('refresh');
+  await s.delete('access_token');
+  await s.delete('refresh_token');
+  await s.delete('client_id');
+  await s.delete('client_secret');
   await s.save();
   user = null;
 }
@@ -70,11 +74,12 @@ async function logout() {
 async function tryRefresh() {
   try {
     const s = await getStore();
-    const refresh = await s.get<string>('refresh');
-    if (!refresh) return false;
-    const res = await refreshSession();
-    await s.set('session', res.token.session);
-    await s.set('refresh', res.token.refresh);
+    const clientId = await s.get<string>('client_id');
+    const clientSecret = await s.get<string>('client_secret');
+    if (!clientId || !clientSecret) return false;
+    const res = await refreshSession(clientId, clientSecret);
+    await s.set('access_token', res.access_token);
+    await s.set('refresh_token', res.refresh_token);
     await s.save();
     return true;
   } catch {

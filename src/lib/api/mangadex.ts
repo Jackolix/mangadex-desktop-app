@@ -1,3 +1,4 @@
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type {
   ApiResponse,
   AtHomeServer,
@@ -13,14 +14,15 @@ import type {
 } from './types';
 
 const BASE_URL = 'https://api.mangadex.org';
+const AUTH_URL = 'https://auth.mangadex.org/realms/mangadex/protocol/openid-connect/token';
 const COVER_BASE = 'https://uploads.mangadex.org/covers';
 
 // Token storage
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 
-export function setTokens(session: string, refresh: string) {
-  accessToken = session;
+export function setTokens(access: string, refresh: string) {
+  accessToken = access;
   refreshToken = refresh;
 }
 
@@ -87,36 +89,55 @@ async function request<T>(
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function login(username: string, password: string): Promise<AuthResponse> {
-  const res = await request<AuthResponse>('/auth/login', {
+async function authRequest(params: Record<string, string>): Promise<AuthResponse> {
+  const body = new URLSearchParams(params);
+  const response = await tauriFetch(AUTH_URL, {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
   });
-  if (res.token) {
-    setTokens(res.token.session, res.token.refresh);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.error_description || `Auth failed: HTTP ${response.status}`);
   }
+  return response.json();
+}
+
+export async function login(
+  username: string,
+  password: string,
+  clientId: string,
+  clientSecret: string
+): Promise<AuthResponse> {
+  const res = await authRequest({
+    grant_type: 'password',
+    username,
+    password,
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+  setTokens(res.access_token, res.refresh_token);
   return res;
 }
 
-export async function refreshSession(): Promise<AuthResponse> {
+export async function refreshSession(clientId: string, clientSecret: string): Promise<AuthResponse> {
   if (!refreshToken) throw new Error('No refresh token');
-  const res = await request<AuthResponse>('/auth/refresh', {
-    method: 'POST',
-    body: JSON.stringify({ token: refreshToken }),
+  const res = await authRequest({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret,
   });
-  if (res.token) {
-    setTokens(res.token.session, res.token.refresh);
-  }
+  setTokens(res.access_token, res.refresh_token);
   return res;
 }
 
 export async function logout(): Promise<void> {
-  await request('/auth/logout', { method: 'POST' }).catch(() => {});
   clearTokens();
 }
 
 export async function getMe(): Promise<User> {
-  const res = await request<ApiResponse<User>>('/auth/me');
+  const res = await request<ApiResponse<User>>('/user/me');
   return res.data;
 }
 
@@ -228,12 +249,31 @@ export function getPageUrls(server: AtHomeServer, dataSaver = false): string[] {
 
 // ── User follows ──────────────────────────────────────────────────────────────
 
-export async function getFollowedManga(limit = 100): Promise<MangaWithCover[]> {
-  if (!accessToken) return [];
+export async function getFollowedManga(limit = 100, offset = 0): Promise<{ data: MangaWithCover[]; total: number }> {
+  if (!accessToken) return { data: [], total: 0 };
   const res = await request<ApiResponse<Manga[]>>('/user/follows/manga', {
-    params: { limit, includes: ['cover_art'] },
+    params: { limit, offset, includes: ['cover_art'] },
   });
-  return res.data.map(enrichManga);
+  return { data: res.data.map(enrichManga), total: res.total ?? 0 };
+}
+
+export async function getAllFollowedManga(): Promise<MangaWithCover[]> {
+  if (!accessToken) return [];
+  const pageSize = 100;
+  const first = await getFollowedManga(pageSize, 0);
+  const results = [...first.data];
+  const pages = Math.ceil(first.total / pageSize);
+  for (let i = 1; i < pages; i++) {
+    const page = await getFollowedManga(pageSize, i * pageSize);
+    results.push(...page.data);
+  }
+  return results;
+}
+
+export async function getAllReadingStatuses(): Promise<Record<string, string>> {
+  if (!accessToken) return {};
+  const res = await request<{ result: string; statuses: Record<string, string> }>('/manga/status');
+  return res.statuses ?? {};
 }
 
 export async function followManga(mangaId: string): Promise<void> {

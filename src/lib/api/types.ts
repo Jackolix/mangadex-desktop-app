@@ -162,14 +162,11 @@ export interface ApiError {
 }
 
 // Auth types
-export interface AuthTokens {
-  session: string;
-  refresh: string;
-}
-
 export interface AuthResponse {
-  result: string;
-  token: AuthTokens;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
 }
 
 // Search params

@@ -8,8 +8,10 @@
   import { getManga, getMangaChapters, getMangaTitle, getMangaDescription, getStatusColor, getContentRatingColor } from '$lib/api/mangadex';
   import type { Chapter, MangaWithCover } from '$lib/api/types';
   import { library } from '$lib/stores/library.svelte';
+  import { auth } from '$lib/stores/auth.svelte';
   import { toast } from 'svelte-sonner';
   import { formatDate } from '$lib/utils';
+  import Select from '$lib/components/ui/Select.svelte';
 
   const mangaId = $derived(page.params.id!);
 
@@ -82,9 +84,23 @@
   }
 
   const isInLibrary = $derived(library.isInLibrary(mangaId));
+  const libraryEntry = $derived(library.entries.find((e) => e.id === mangaId));
   const title = $derived(manga ? getMangaTitle(manga) : '');
   const description = $derived(manga ? getMangaDescription(manga) : '');
   const displayedChapters = $derived(showAllChapters ? chapters : chapters.slice(0, 30));
+
+  const statusOptions = [
+    { value: 'reading', label: 'Reading' },
+    { value: 'on_hold', label: 'On Hold' },
+    { value: 'plan_to_read', label: 'Plan to Read' },
+    { value: 're_reading', label: 'Re-reading' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'dropped', label: 'Dropped' },
+  ];
+
+  async function handleStatusChange(status: string) {
+    await library.updateStatus(mangaId, status);
+  }
 
   const tags = $derived(manga?.attributes.tags.slice(0, 8) ?? []);
   const authorName = $derived(manga?.authorName ?? '');
@@ -168,7 +184,7 @@
             {/each}
           </div>
 
-          <div class="flex gap-2 mt-1">
+          <div class="flex flex-wrap gap-2 mt-1">
             {#if chapters.length > 0}
               <Button
                 variant="accent"
@@ -193,6 +209,14 @@
                 Add to Library
               {/if}
             </Button>
+            {#if isInLibrary && auth.isLoggedIn && libraryEntry}
+              <Select
+                value={libraryEntry.status}
+                options={statusOptions}
+                class="h-9 text-sm"
+                onchange={(e: Event) => handleStatusChange((e.target as HTMLSelectElement).value)}
+              />
+            {/if}
           </div>
         </div>
       </div>

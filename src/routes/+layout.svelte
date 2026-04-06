@@ -25,6 +25,13 @@
     return () => downloadsStore.cleanup();
   });
 
+  // Sync library from MangaDex whenever the user becomes logged in
+  $effect(() => {
+    if (auth.isLoggedIn) {
+      library.syncFromMangaDex();
+    }
+  });
+
   // Check if we're in the reader (full-screen, no sidebar)
   const isReader = $derived(page.url.pathname.includes('/read/'));
 </script>

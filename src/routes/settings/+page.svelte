@@ -9,15 +9,19 @@
   // Login form
   let username = $state('');
   let password = $state('');
+  let clientId = $state('');
+  let clientSecret = $state('');
   let loginLoading = $state(false);
 
   async function handleLogin() {
     loginLoading = true;
-    const success = await auth.login(username, password);
+    const success = await auth.login(username, password, clientId, clientSecret);
     if (success) {
       toast.success(`Welcome, ${auth.user?.attributes.username}!`);
       username = '';
       password = '';
+      clientId = '';
+      clientSecret = '';
     } else {
       toast.error(auth.error ?? 'Login failed');
     }
@@ -80,7 +84,10 @@
           </div>
         {:else}
           <form onsubmit={(e) => { e.preventDefault(); handleLogin(); }} class="flex flex-col gap-4">
-            <p class="text-sm text-[var(--color-text-secondary)]">Sign in to sync your library and reading progress</p>
+            <div>
+              <p class="text-sm text-[var(--color-text-secondary)]">Sign in to sync your library and reading progress</p>
+              <p class="text-xs text-[var(--color-text-muted)] mt-1">Requires a personal API client from <span class="text-[var(--color-accent)]">mangadex.org/settings</span></p>
+            </div>
             <div class="flex flex-col gap-3">
               <div>
                 <label class="text-xs text-[var(--color-text-muted)] mb-1 block">Username</label>
@@ -89,6 +96,14 @@
               <div>
                 <label class="text-xs text-[var(--color-text-muted)] mb-1 block">Password</label>
                 <Input bind:value={password} type="password" placeholder="Password" autocomplete="current-password" />
+              </div>
+              <div>
+                <label class="text-xs text-[var(--color-text-muted)] mb-1 block">Client ID</label>
+                <Input bind:value={clientId} placeholder="personal-client-..." autocomplete="off" />
+              </div>
+              <div>
+                <label class="text-xs text-[var(--color-text-muted)] mb-1 block">Client Secret</label>
+                <Input bind:value={clientSecret} type="password" placeholder="Client secret" autocomplete="off" />
               </div>
             </div>
             <Button type="submit" variant="accent" loading={loginLoading}>Sign In</Button>
