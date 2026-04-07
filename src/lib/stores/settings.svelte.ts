@@ -23,6 +23,11 @@ export interface Settings {
   // Downloads
   downloadPath: string;
   autoDownload: boolean;
+  // Downloads
+  concurrentChapters: number;
+  concurrentPages: number;
+  // Export
+  epubChaptersPerPart: number;
   // UI
   showChapterTitles: boolean;
   showContentRating: boolean;
@@ -41,6 +46,9 @@ const defaults: Settings = {
   contentRating: ['safe', 'suggestive'],
   downloadPath: '',
   autoDownload: false,
+  concurrentChapters: 3,
+  concurrentPages: 5,
+  epubChaptersPerPart: 20,
   showChapterTitles: true,
   showContentRating: true,
   compactMode: false,

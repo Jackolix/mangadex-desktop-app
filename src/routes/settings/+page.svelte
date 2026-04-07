@@ -230,6 +230,56 @@
       </div>
     </section>
 
+    <!-- Downloads -->
+    <section class="mb-8">
+      <h2 class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Downloads</h2>
+      <div class="bg-[var(--color-bg-elevated)] rounded-[var(--radius-lg)] divide-y divide-[var(--color-border)]">
+        <div class="flex items-center justify-between px-5 py-4">
+          <div>
+            <p class="text-sm text-[var(--color-text-primary)]">Concurrent Chapters</p>
+            <p class="text-xs text-[var(--color-text-muted)] mt-0.5">How many chapters download at the same time</p>
+          </div>
+          <Select
+            value={String(settingsStore.value.concurrentChapters)}
+            options={[1, 2, 3, 5, 8].map((n) => ({ value: String(n), label: String(n) }))}
+            class="w-24"
+            onchange={(e: Event) => settingsStore.update({ concurrentChapters: Number((e.target as HTMLSelectElement).value) })}
+          />
+        </div>
+        <div class="flex items-center justify-between px-5 py-4">
+          <div>
+            <p class="text-sm text-[var(--color-text-primary)]">Concurrent Pages</p>
+            <p class="text-xs text-[var(--color-text-muted)] mt-0.5">How many pages download in parallel per chapter</p>
+          </div>
+          <Select
+            value={String(settingsStore.value.concurrentPages)}
+            options={[1, 2, 3, 5, 8, 10].map((n) => ({ value: String(n), label: String(n) }))}
+            class="w-24"
+            onchange={(e: Event) => settingsStore.update({ concurrentPages: Number((e.target as HTMLSelectElement).value) })}
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- EPUB Export -->
+    <section class="mb-8">
+      <h2 class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">EPUB Export</h2>
+      <div class="bg-[var(--color-bg-elevated)] rounded-[var(--radius-lg)] divide-y divide-[var(--color-border)]">
+        <div class="flex items-center justify-between px-5 py-4">
+          <div>
+            <p class="text-sm text-[var(--color-text-primary)]">Chapters per File</p>
+            <p class="text-xs text-[var(--color-text-muted)] mt-0.5">Max chapters per EPUB — lower values use less memory</p>
+          </div>
+          <Select
+            value={String(settingsStore.value.epubChaptersPerPart)}
+            options={[5, 10, 15, 20, 30, 50].map((n) => ({ value: String(n), label: String(n) }))}
+            class="w-24"
+            onchange={(e: Event) => settingsStore.update({ epubChaptersPerPart: Number((e.target as HTMLSelectElement).value) })}
+          />
+        </div>
+      </div>
+    </section>
+
     <!-- About -->
     <section>
       <h2 class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">About</h2>

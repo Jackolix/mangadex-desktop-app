@@ -375,12 +375,25 @@ function enrichManga(manga: Manga): MangaWithCover {
 }
 
 export function getMangaTitle(manga: Manga, preferLang = 'en'): string {
-  const { title } = manga.attributes;
+  const { title, altTitles } = manga.attributes;
+
+  // Helper: find a locale in the altTitles array
+  const fromAlt = (lang: string): string | undefined => {
+    for (const alt of altTitles) {
+      if (alt[lang]) return alt[lang];
+    }
+    return undefined;
+  };
+
   return (
     title[preferLang] ||
+    fromAlt(preferLang) ||
     title['en'] ||
+    fromAlt('en') ||
     title['ja-ro'] ||
+    fromAlt('ja-ro') ||
     title['ja'] ||
+    fromAlt('ja') ||
     Object.values(title)[0] ||
     'Unknown Title'
   );

@@ -4,6 +4,7 @@ import { mkdir, writeFile, exists, remove, BaseDirectory } from '@tauri-apps/plu
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { getAtHomeServer } from '$lib/api/mangadex';
 import type { DownloadEntry } from '$lib/api/types';
+import { settingsStore } from '$lib/stores/settings.svelte';
 
 let db: Awaited<ReturnType<typeof Database.load>> | null = null;
 
@@ -11,8 +12,6 @@ async function getDb() {
   if (!db) db = await Database.load('sqlite:mangadex.db');
   return db;
 }
-
-const MAX_CONCURRENT_CHAPTERS = 3;
 
 type BatchChapter = Omit<DownloadEntry, 'status' | 'downloadedPages' | 'createdAt'>;
 
@@ -115,7 +114,7 @@ async function queueDownload(entry: Omit<DownloadEntry, 'status' | 'downloadedPa
   ];
 
   // Don't await — run in background
-  if (activeDownloads.size < MAX_CONCURRENT_CHAPTERS) {
+  if (activeDownloads.size < settingsStore.value.concurrentChapters) {
     startDownload(entry.mangaId, entry.chapterId);
   } else {
     chapterQueue.push({ mangaId: entry.mangaId, chapterId: entry.chapterId });
@@ -159,7 +158,7 @@ async function startDownload(mangaId: string, chapterId: string) {
     );
 
     // Download pages in parallel with a concurrency limit
-    const CONCURRENCY = 5;
+    const CONCURRENCY = settingsStore.value.concurrentPages;
     let completedCount = 0;
 
     async function downloadPage(i: number, filename: string) {

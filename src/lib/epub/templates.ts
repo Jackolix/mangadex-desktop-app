@@ -64,6 +64,8 @@ export interface PageItem {
   imageId: string;
   imagePath: string;
   mimeType: string;
+  xhtmlId: string;
+  xhtmlPath: string;
 }
 
 export interface ChapterManifestItem {
@@ -98,14 +100,15 @@ export function buildContentOpf(params: {
     .join('\n');
 
   const manifestChapters = chapters
-    .map(
-      (ch) =>
-        `    <item id="${ch.xhtmlId}" href="${ch.xhtmlPath}" media-type="application/xhtml+xml"/>`
+    .flatMap((ch) =>
+      ch.pages.map(
+        (p) => `    <item id="${p.xhtmlId}" href="${p.xhtmlPath}" media-type="application/xhtml+xml"/>`
+      )
     )
     .join('\n');
 
   const spineItems = chapters
-    .map((ch) => `    <itemref idref="${ch.xhtmlId}"/>`)
+    .flatMap((ch) => ch.pages.map((p) => `    <itemref idref="${p.xhtmlId}"/>`))
     .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -190,33 +193,25 @@ ${navPoints}
 </ncx>`;
 }
 
-export function buildChapterXhtml(params: { chapterLabel: string; pages: PageItem[] }): string {
-  const { chapterLabel, pages } = params;
-  const pageImgs = pages
-    .map(
-      (p, i) => {
-        // imagePath is OEBPS-relative (e.g. "chapters/images/ch001_000.jpg")
-        // This XHTML is at OEBPS/chapters/ch_001.xhtml, so strip the "chapters/" prefix
-        const relSrc = p.imagePath.startsWith('chapters/')
-          ? p.imagePath.slice('chapters/'.length)
-          : p.imagePath;
-        return `  <div class="page-container">
-    <img class="chapter-page" src="${relSrc}" alt="Page ${i + 1}"/>
-  </div>`;
-      }
-    )
-    .join('\n');
+export function buildPageXhtml(params: { chapterLabel: string; page: PageItem; pageNum: number }): string {
+  const { chapterLabel, page, pageNum } = params;
+  // imagePath is OEBPS-relative (e.g. "chapters/images/ch001_000.jpg")
+  // This XHTML is at OEBPS/chapters/ch001_000.xhtml, so strip the "chapters/" prefix
+  const relSrc = page.imagePath.startsWith('chapters/')
+    ? page.imagePath.slice('chapters/'.length)
+    : page.imagePath;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <title>${xmlEscape(chapterLabel)}</title>
+  <title>${xmlEscape(chapterLabel)} - Page ${pageNum}</title>
   <link rel="stylesheet" type="text/css" href="../css/style.css"/>
 </head>
 <body>
-  <h2 class="chapter-title">${xmlEscape(chapterLabel)}</h2>
-${pageImgs}
+  <div class="page-container">
+    <img class="chapter-page" src="${relSrc}" alt="${xmlEscape(chapterLabel)} Page ${pageNum}"/>
+  </div>
 </body>
 </html>`;
 }

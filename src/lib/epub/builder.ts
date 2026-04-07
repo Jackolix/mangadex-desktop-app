@@ -11,7 +11,7 @@ import {
   buildContentOpf,
   buildNavXhtml,
   buildTocNcx,
-  buildChapterXhtml,
+  buildPageXhtml,
   type ChapterManifestItem,
   type PageItem,
 } from './templates';
@@ -140,8 +140,14 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
   }
 
   const manifestItems: ChapterManifestItem[] = [];
-  const pageDataMap = new Map<string, Uint8Array>();
   const total = sorted.length;
+
+  // Build the zip incrementally — images are added chapter-by-chapter so we
+  // never hold all page bytes in a separate map AND in JSZip at the same time.
+  const zip = new JSZip();
+
+  // mimetype MUST be first and MUST be uncompressed
+  zip.file('mimetype', buildMimetype(), { compression: 'STORE' });
 
   for (let i = 0; i < sorted.length; i++) {
     const chapter = sorted[i];
@@ -178,14 +184,30 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
       const ext = extForMime(mime);
       const imageId = `img_ch${chIdx}_${pgIdx}`;
       const imagePath = `chapters/images/ch${chIdx}_${pgIdx}.${ext}`;
+      const xhtmlId = `page_ch${chIdx}_${pgIdx}`;
+      const xhtmlPath = `chapters/ch${chIdx}_${pgIdx}.xhtml`;
 
-      pageDataMap.set(imageId, bytes);
-      pages.push({ imageId, imagePath, mimeType: mime });
+      // Add image immediately with STORE — images are already compressed
+      // (JPEG/PNG/WebP), re-deflating wastes memory with negligible size gain.
+      zip.file(`OEBPS/${imagePath}`, bytes, { compression: 'STORE' });
+
+      pages.push({ imageId, imagePath, mimeType: mime, xhtmlId, xhtmlPath });
+    }
+
+    // rawPages can now be GC'd — we passed the bytes to JSZip above
+    rawPages = null;
+
+    for (let pi = 0; pi < pages.length; pi++) {
+      const p = pages[pi];
+      zip.file(
+        `OEBPS/${p.xhtmlPath}`,
+        buildPageXhtml({ chapterLabel: label, page: p, pageNum: pi + 1 })
+      );
     }
 
     manifestItems.push({
-      xhtmlId: `ch_${chIdx}`,
-      xhtmlPath: `chapters/ch_${chIdx}.xhtml`,
+      xhtmlId: `page_ch${chIdx}_000`,
+      xhtmlPath: pages.length > 0 ? pages[0].xhtmlPath : `chapters/ch${chIdx}_000.xhtml`,
       label,
       pages,
     });
@@ -193,10 +215,6 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
 
   onProgress?.('Assembling EPUB…', 82);
 
-  const zip = new JSZip();
-
-  // mimetype MUST be first and MUST be uncompressed
-  zip.file('mimetype', buildMimetype(), { compression: 'STORE' });
   zip.file('META-INF/container.xml', buildContainerXml());
   zip.file('OEBPS/css/style.css', buildStyleCss());
 
@@ -208,7 +226,7 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
   const hasCover = coverBytes !== null;
   if (hasCover && coverBytes) {
     zip.file('OEBPS/cover.xhtml', buildCoverXhtml(title));
-    zip.file('OEBPS/images/cover.jpg', coverBytes);
+    zip.file('OEBPS/images/cover.jpg', coverBytes, { compression: 'STORE' });
   }
 
   zip.file(
@@ -216,28 +234,14 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
     buildContentOpf({ mangaId: manga.id, title, author, description, language, year, tags, chapters: manifestItems, hasCover })
   );
 
-  for (const ch of manifestItems) {
-    zip.file(`OEBPS/${ch.xhtmlPath}`, buildChapterXhtml({ chapterLabel: ch.label, pages: ch.pages }));
-    for (const p of ch.pages) {
-      const bytes = pageDataMap.get(p.imageId);
-      if (bytes) zip.file(`OEBPS/${p.imagePath}`, bytes);
-    }
-  }
-
-  // Clear the map to free memory before compression
-  pageDataMap.clear();
-  
-  // Hint to garbage collector that we're done with large data structures
-  if (typeof globalThis !== 'undefined' && (globalThis as any).gc) {
-    (globalThis as any).gc();
-  }
-
   onProgress?.('Compressing…', 90);
 
+  // Only text files (XHTML, XML, CSS) benefit from DEFLATE — images are already
+  // stored uncompressed above, so this pass is fast and low-memory.
   const result = await zip.generateAsync({
     type: 'uint8array',
     compression: 'DEFLATE',
-    compressionOptions: { level: 3 }, // Reduced from 6 to 3 for lower memory usage
+    compressionOptions: { level: 6 },
   });
 
   onProgress?.('Done', 100);

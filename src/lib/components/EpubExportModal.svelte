@@ -6,6 +6,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import { downloadsStore } from '$lib/stores/downloads.svelte';
   import { getMangaTitle, getMangaVolumeCoverUrls } from '$lib/api/mangadex';
+  import { settingsStore } from '$lib/stores/settings.svelte';
   import { buildEpub } from '$lib/epub/builder';
   import { epubExports } from '$lib/stores/epubExports.svelte';
   import type { MangaWithCover, Chapter } from '$lib/api/types';
@@ -133,6 +134,8 @@
       const toastId = toast.loading(`Exporting "${sanitizedTitle}"…`);
       epubExports.start(capturedManga.id);
 
+      const CHAPTERS_PER_PART = settingsStore.value.epubChaptersPerPart;
+
       try {
         // Group selected chapters by volume
         const volMap = new Map<string, Chapter[]>();
@@ -141,11 +144,38 @@
           if (!volMap.has(key)) volMap.set(key, []);
           volMap.get(key)!.push(ch);
         }
-        const volGroups = [...volMap.entries()].sort(([a], [b]) => {
+        const rawVolGroups = [...volMap.entries()].sort(([a], [b]) => {
           if (a === '__none__') return 1;
           if (b === '__none__') return -1;
           return parseFloat(a) - parseFloat(b);
         });
+
+        // Expand any group that exceeds the per-file chapter limit into parts.
+        // This is most common for volume-less manga, but applies to any group.
+        type ExportGroup = { label: string | null; chapters: Chapter[]; coverVolKey: string | null };
+        const exportGroups: ExportGroup[] = [];
+        for (const [volKey, chs] of rawVolGroups) {
+          if (chs.length > CHAPTERS_PER_PART) {
+            const totalParts = Math.ceil(chs.length / CHAPTERS_PER_PART);
+            for (let p = 0; p < totalParts; p++) {
+              exportGroups.push({
+                label: totalParts === 1 && volKey === '__none__'
+                  ? null
+                  : volKey !== '__none__'
+                    ? `Vol.${volKey} Part ${p + 1}`
+                    : `Part ${p + 1}`,
+                chapters: chs.slice(p * CHAPTERS_PER_PART, (p + 1) * CHAPTERS_PER_PART),
+                coverVolKey: volKey !== '__none__' ? volKey : null,
+              });
+            }
+          } else {
+            exportGroups.push({
+              label: volKey === '__none__' ? null : `Vol.${volKey}`,
+              chapters: chs,
+              coverVolKey: volKey !== '__none__' ? volKey : null,
+            });
+          }
+        }
 
         // Fetch all volume cover URLs upfront
         let volCoverUrls = new Map<string, string>();
@@ -156,26 +186,24 @@
         }
 
         let exported = 0;
-        for (let vi = 0; vi < volGroups.length; vi++) {
+        for (let vi = 0; vi < exportGroups.length; vi++) {
           if (signal.aborted) {
             toast.warning(`Export of "${sanitizedTitle}" was cancelled`, { id: toastId });
             return;
           }
 
-          const [volKey, chapters] = volGroups[vi];
-          const isOneshot = volKey === '__none__';
-          const volLabel = isOneshot ? null : `Vol.${volKey}`;
-          const volumeTitle = volLabel ? `${sanitizedTitle} ${volLabel}` : sanitizedTitle;
+          const { label, chapters, coverVolKey } = exportGroups[vi];
+          const volumeTitle = label ? `${sanitizedTitle} ${label}` : sanitizedTitle;
           const fileName = `${volumeTitle}.epub`;
 
-          const overallPct = Math.round((vi / volGroups.length) * 100);
-          const step = `Volume ${vi + 1}/${volGroups.length}: ${volumeTitle}`;
+          const overallPct = Math.round((vi / exportGroups.length) * 100);
+          const step = `${vi + 1}/${exportGroups.length}: ${volumeTitle}`;
           toast.loading(step, { id: toastId });
           epubExports.update(capturedManga.id, step, overallPct);
 
           // Fetch cover for this volume
           let volumeCoverBytes: ArrayBuffer | null = null;
-          const coverUrl = volKey !== '__none__' ? volCoverUrls.get(volKey) : undefined;
+          const coverUrl = coverVolKey ? volCoverUrls.get(coverVolKey) : undefined;
           const urlToFetch = coverUrl ?? capturedManga.coverUrl;
           if (urlToFetch) {
             try {
@@ -193,7 +221,7 @@
               volumeTitle,
               volumeCoverBytes,
               onProgress: (substep, subPct) => {
-                const blended = Math.round(overallPct + (subPct / volGroups.length));
+                const blended = Math.round(overallPct + (subPct / exportGroups.length));
                 epubExports.update(capturedManga.id, substep, blended);
                 toast.loading(substep, { id: toastId });
               },
@@ -203,14 +231,14 @@
             await writeFile(`${capturedOutDir}${sep}${fileName}`, bytes);
             exported++;
           } catch (e) {
-            console.error(`[epub] Failed volume ${volKey}:`, e);
+            console.error(`[epub] Failed group "${volumeTitle}":`, e);
             toast.error(`Failed to export ${volumeTitle}: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
 
         if (exported > 0) {
           toast.success(
-            `Exported ${exported} volume${exported === 1 ? '' : 's'} to folder`,
+            `Exported ${exported} file${exported === 1 ? '' : 's'} to folder`,
             { id: toastId }
           );
         }
