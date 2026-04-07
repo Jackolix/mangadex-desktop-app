@@ -19,8 +19,10 @@ import {
 export interface EpubExportOptions {
   manga: MangaWithCover;
   selectedChapters: Chapter[];
-  /** Override the epub title (e.g. "My Manga Vol.3") */
+  /** Override the epub title (e.g. "My Manga Vol.3 Part 1") */
   volumeTitle?: string;
+  /** Series position used for calibre:series_index so readers like Kavita group correctly */
+  seriesIndex?: number;
   /** Pre-fetched cover bytes for this volume; pass null to skip cover */
   volumeCoverBytes?: ArrayBuffer | null;
   onProgress?: (step: string, pct: number) => void;
@@ -113,7 +115,9 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
 
   const sorted = [...opts.selectedChapters].sort((a, b) => sortKey(a) - sortKey(b));
 
-  const title = opts.volumeTitle ?? getMangaTitle(manga);
+  const seriesTitle = getMangaTitle(manga); // always the base series name
+  const title = opts.volumeTitle ?? seriesTitle;
+  const seriesIndex = opts.seriesIndex ?? 1;
   const author = manga.authorName || 'Unknown';
   const description = getMangaDescription(manga);
   const language = 'en';
@@ -231,7 +235,7 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
 
   zip.file(
     'OEBPS/content.opf',
-    buildContentOpf({ mangaId: manga.id, title, author, description, language, year, tags, chapters: manifestItems, hasCover })
+    buildContentOpf({ mangaId: manga.id, title, seriesTitle, seriesIndex, author, description, language, year, tags, chapters: manifestItems, hasCover })
   );
 
   onProgress?.('Compressing…', 90);

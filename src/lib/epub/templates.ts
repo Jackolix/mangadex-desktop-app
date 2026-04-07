@@ -78,6 +78,8 @@ export interface ChapterManifestItem {
 export function buildContentOpf(params: {
   mangaId: string;
   title: string;
+  seriesTitle: string;
+  seriesIndex: number;
   author: string;
   description: string;
   language: string;
@@ -86,7 +88,7 @@ export function buildContentOpf(params: {
   chapters: ChapterManifestItem[];
   hasCover: boolean;
 }): string {
-  const { mangaId, title, author, description, language, year, tags, chapters, hasCover } = params;
+  const { mangaId, title, seriesTitle, seriesIndex, author, description, language, year, tags, chapters, hasCover } = params;
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 
   const tagItems = tags.map((t) => `    <dc:subject>${xmlEscape(t)}</dc:subject>`).join('\n');
@@ -123,6 +125,11 @@ export function buildContentOpf(params: {
     <dc:language>${xmlEscape(language)}</dc:language>
 ${year ? `    <dc:date>${year}</dc:date>\n` : ''}${tagItems}
     <meta property="dcterms:modified">${now}</meta>
+    <meta name="calibre:series" content="${xmlEscape(seriesTitle)}"/>
+    <meta name="calibre:series_index" content="${seriesIndex}"/>
+    <meta property="belongs-to-collection" id="series">${xmlEscape(seriesTitle)}</meta>
+    <meta refines="#series" property="collection-type">series</meta>
+    <meta refines="#series" property="group-position">${seriesIndex}</meta>
 ${hasCover ? '    <meta name="cover" content="cover-image"/>\n' : ''}  </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>

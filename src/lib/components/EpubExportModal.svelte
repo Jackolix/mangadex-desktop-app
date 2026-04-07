@@ -152,25 +152,30 @@
 
         // Expand any group that exceeds the per-file chapter limit into parts.
         // This is most common for volume-less manga, but applies to any group.
-        type ExportGroup = { label: string | null; chapters: Chapter[]; coverVolKey: string | null };
+        type ExportGroup = { label: string | null; seriesIndex: number; chapters: Chapter[]; coverVolKey: string | null };
         const exportGroups: ExportGroup[] = [];
+        let seriesCounter = 0;
         for (const [volKey, chs] of rawVolGroups) {
           if (chs.length > CHAPTERS_PER_PART) {
             const totalParts = Math.ceil(chs.length / CHAPTERS_PER_PART);
             for (let p = 0; p < totalParts; p++) {
+              seriesCounter++;
               exportGroups.push({
                 label: totalParts === 1 && volKey === '__none__'
                   ? null
                   : volKey !== '__none__'
-                    ? `Vol.${volKey} Part ${p + 1}`
-                    : `Part ${p + 1}`,
+                    ? `Vol.${volKey}-${p + 1}`
+                    : `Vol.${p + 1}`,
+                seriesIndex: seriesCounter,
                 chapters: chs.slice(p * CHAPTERS_PER_PART, (p + 1) * CHAPTERS_PER_PART),
                 coverVolKey: volKey !== '__none__' ? volKey : null,
               });
             }
           } else {
+            seriesCounter++;
             exportGroups.push({
               label: volKey === '__none__' ? null : `Vol.${volKey}`,
+              seriesIndex: seriesCounter,
               chapters: chs,
               coverVolKey: volKey !== '__none__' ? volKey : null,
             });
@@ -192,7 +197,7 @@
             return;
           }
 
-          const { label, chapters, coverVolKey } = exportGroups[vi];
+          const { label, seriesIndex, chapters, coverVolKey } = exportGroups[vi];
           const volumeTitle = label ? `${sanitizedTitle} ${label}` : sanitizedTitle;
           const fileName = `${volumeTitle}.epub`;
 
@@ -219,6 +224,7 @@
               manga: capturedManga,
               selectedChapters: chapters,
               volumeTitle,
+              seriesIndex,
               volumeCoverBytes,
               onProgress: (substep, subPct) => {
                 const blended = Math.round(overallPct + (subPct / exportGroups.length));
