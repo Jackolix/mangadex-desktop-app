@@ -11,6 +11,8 @@
   let loadingFeatured = $state(true);
   let loadingRecent = $state(true);
   let loadingTop = $state(true);
+  let currentIndex = $state(0);
+  let paused = $state(false);
 
   $effect(() => {
     getFeaturedManga()
@@ -24,33 +26,91 @@
       .finally(() => (loadingTop = false));
   });
 
-  const heroBanner = $derived(featured[0]);
+  $effect(() => {
+    if (featured.length <= 1 || paused) return;
+    const id = setInterval(() => {
+      currentIndex = (currentIndex + 1) % featured.length;
+    }, 5000);
+    return () => clearInterval(id);
+  });
+
+  function goTo(index: number) {
+    currentIndex = index;
+  }
+
+  function prev() {
+    currentIndex = (currentIndex - 1 + featured.length) % featured.length;
+  }
+
+  function next() {
+    currentIndex = (currentIndex + 1) % featured.length;
+  }
 </script>
 
 <div class="h-full overflow-y-auto">
-  {#if heroBanner}
-    <div class="relative h-64 overflow-hidden">
-      {#if heroBanner.coverUrl}
-        <img src={heroBanner.coverUrl} alt="" class="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-30" />
-      {/if}
-      <div class="absolute inset-0 bg-gradient-to-r from-[var(--color-bg-base)] via-[var(--color-bg-base)]/70 to-transparent" />
-      <div class="relative h-full flex items-center gap-6 px-8">
-        {#if heroBanner.coverUrl}
-          <img src={heroBanner.coverUrl} alt="" class="h-44 rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] flex-shrink-0 object-cover" style="aspect-ratio: 2/3" />
-        {/if}
-        <div class="flex flex-col gap-2 min-w-0">
-          <span class="text-[10px] font-semibold text-[var(--color-accent)] uppercase tracking-wider">Featured</span>
-          <h1 class="text-2xl font-bold text-[var(--color-text-primary)] leading-tight line-clamp-2">{getMangaTitle(heroBanner)}</h1>
-          {#if heroBanner.authorName}
-            <p class="text-sm text-[var(--color-text-muted)]">by {heroBanner.authorName}</p>
+  {#if featured.length > 0}
+    <div
+      class="relative h-64 overflow-hidden"
+      role="region"
+      aria-label="Featured manga carousel"
+      onmouseenter={() => (paused = true)}
+      onmouseleave={() => (paused = false)}
+    >
+      {#each featured as manga, i}
+        <div
+          class="absolute inset-0 transition-opacity duration-700"
+          style="opacity: {i === currentIndex ? 1 : 0}; pointer-events: {i === currentIndex ? 'auto' : 'none'};"
+        >
+          {#if manga.coverUrl}
+            <img src={manga.coverUrl} alt="" class="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-30" />
           {/if}
-          <p class="text-sm text-[var(--color-text-secondary)] line-clamp-2 max-w-lg">{getMangaDescription(heroBanner).slice(0, 200)}</p>
-          <div class="flex gap-2 mt-1">
-            <a href="/manga/{heroBanner.id}" class="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-white text-sm font-medium hover:bg-[var(--color-accent-hover)] transition-colors">
-              View Manga
-            </a>
+          <div class="absolute inset-0 bg-gradient-to-r from-[var(--color-bg-base)] via-[var(--color-bg-base)]/70 to-transparent" />
+          <div class="relative h-full flex items-center gap-6 px-8">
+            {#if manga.coverUrl}
+              <img src={manga.coverUrl} alt="" class="h-44 rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] flex-shrink-0 object-cover" style="aspect-ratio: 2/3" />
+            {/if}
+            <div class="flex flex-col gap-2 min-w-0">
+              <span class="text-[10px] font-semibold text-[var(--color-accent)] uppercase tracking-wider">Featured</span>
+              <h1 class="text-2xl font-bold text-[var(--color-text-primary)] leading-tight line-clamp-2">{getMangaTitle(manga)}</h1>
+              {#if manga.authorName}
+                <p class="text-sm text-[var(--color-text-muted)]">by {manga.authorName}</p>
+              {/if}
+              <p class="text-sm text-[var(--color-text-secondary)] line-clamp-2 max-w-lg">{getMangaDescription(manga).slice(0, 200)}</p>
+              <div class="flex gap-2 mt-1">
+                <a href="/manga/{manga.id}" class="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-white text-sm font-medium hover:bg-[var(--color-accent-hover)] transition-colors">
+                  View Manga
+                </a>
+              </div>
+            </div>
           </div>
         </div>
+      {/each}
+
+      <!-- Prev / Next arrows -->
+      <button
+        onclick={prev}
+        class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-bg-base)]/60 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-base)]/80 transition-colors z-10"
+        aria-label="Previous"
+      >
+        ‹
+      </button>
+      <button
+        onclick={next}
+        class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-bg-base)]/60 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-base)]/80 transition-colors z-10"
+        aria-label="Next"
+      >
+        ›
+      </button>
+
+      <!-- Dot indicators -->
+      <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+        {#each featured as _, i}
+          <button
+            onclick={() => goTo(i)}
+            class="w-1.5 h-1.5 rounded-full transition-all duration-300 {i === currentIndex ? 'bg-[var(--color-accent)] w-4' : 'bg-[var(--color-text-muted)]/50 hover:bg-[var(--color-text-muted)]'}"
+            aria-label="Go to slide {i + 1}"
+          />
+        {/each}
       </div>
     </div>
   {:else if loadingFeatured}
