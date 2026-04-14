@@ -230,6 +230,28 @@
                   </span>
                 </div>
               {/if}
+
+              <!-- NEW badge -->
+              {#if library.hasNewChapters(entry.id)}
+                <div class="absolute bottom-7 right-1.5">
+                  <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-[var(--color-accent)] text-white shadow-sm">
+                    NEW
+                  </span>
+                </div>
+              {/if}
+
+              <!-- Reading progress bar -->
+              {#if (library.progressSummary[entry.id] ?? 0) > 0 || (entry.totalChapters ?? 0) > 0}
+                {@const readCount = library.progressSummary[entry.id] ?? 0}
+                {@const totalChapters = entry.totalChapters ?? 0}
+                {@const pct = totalChapters > 0 ? Math.min(100, Math.round((readCount / totalChapters) * 100)) : (readCount > 0 ? 8 : 0)}
+                <div class="absolute bottom-0 left-0 right-0 h-2 bg-black/50">
+                  <div
+                    class="h-full transition-all duration-300 {pct >= 100 ? 'bg-green-500' : 'bg-[var(--color-accent)]'}"
+                    style="width: {pct}%"
+                  />
+                </div>
+              {/if}
             </button>
 
             <!-- Title -->

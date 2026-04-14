@@ -75,7 +75,7 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  const response = await fetch(url, { ...fetchOptions, headers });
+  const response = await tauriFetch(url, { ...fetchOptions, headers });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ result: 'error' }));
@@ -322,6 +322,14 @@ export async function markChaptersRead(mangaId: string, chapterIds: string[]): P
     method: 'POST',
     body: JSON.stringify({ chapterIdsRead: chapterIds }),
   });
+}
+
+export async function getMangaBatch(ids: string[]): Promise<MangaWithCover[]> {
+  if (ids.length === 0) return [];
+  const res = await request<ApiResponse<Manga[]>>('/manga', {
+    params: { ids, limit: Math.min(ids.length, 100) },
+  });
+  return res.data.map(enrichManga);
 }
 
 // ── Tags ──────────────────────────────────────────────────────────────────────

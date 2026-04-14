@@ -240,6 +240,8 @@ export interface LibraryEntry {
   tags: string[];
   addedAt: number;
   updatedAt: number;
+  latestChapterId?: string;
+  totalChapters?: number;
 }
 
 export interface DownloadEntry {

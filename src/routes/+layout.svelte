@@ -6,9 +6,10 @@
   import { library } from '$lib/stores/library.svelte';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { downloadsStore } from '$lib/stores/downloads.svelte';
-  import { Toaster } from 'svelte-sonner';
+  import { Toaster, toast } from 'svelte-sonner';
   import type { Snippet } from 'svelte';
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
 
   interface Props { children: Snippet; }
   let { children }: Props = $props();
@@ -20,6 +21,23 @@
       await auth.init();
       await library.load();
       await downloadsStore.init();
+
+      // Check for new chapters in the background after everything is loaded
+      const newIds = await library.checkForNewChapters();
+      if (newIds.length > 0) {
+        const titles = newIds
+          .slice(0, 3)
+          .map((id) => library.entries.find((e) => e.id === id)?.title)
+          .filter(Boolean);
+        const extra = newIds.length > 3 ? ` (+${newIds.length - 3} more)` : '';
+        toast.info(`New chapters available: ${titles.join(', ')}${extra}`, {
+          duration: 6000,
+          action: {
+            label: 'Library',
+            onClick: () => goto('/library'),
+          },
+        });
+      }
     }
     initAll();
 

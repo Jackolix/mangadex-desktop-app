@@ -135,7 +135,7 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
     onProgress?.('Fetching cover image…', 0);
     if (manga.coverUrl) {
       try {
-        const res = await fetch(manga.coverUrl);
+        const res = await tauriFetch(manga.coverUrl);
         if (res.ok) coverBytes = await res.arrayBuffer();
       } catch {
         // offline — export without cover

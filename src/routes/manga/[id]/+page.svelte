@@ -44,7 +44,13 @@
     collapsedVolumes = new Set();
 
     getManga(id)
-      .then((m) => (manga = m))
+      .then((m) => {
+        manga = m;
+        // If this manga had a "new chapters" badge, clear it now that the user is viewing it
+        if (library.hasNewChapters(id) && m.attributes.latestUploadedChapter) {
+          library.acknowledgeNewChapters(id, m.attributes.latestUploadedChapter);
+        }
+      })
       .finally(() => (loadingManga = false));
 
     getMangaChapters(id, { limit: 500, order: { volume: 'asc', chapter: 'asc' } })
@@ -52,6 +58,10 @@
         chapters = data;
         // Resolve continue chapter now that we have both chapters + progress
         resolveContinueChapter(data);
+        // Keep total chapter count up-to-date in the library
+        if (library.isInLibrary(id)) {
+          library.updateChapterCount(id, data.length);
+        }
       })
       .finally(() => (loadingChapters = false));
 
@@ -219,7 +229,7 @@
           status: 'reading',
           contentRating: manga.attributes.contentRating,
           tags: manga.attributes.tags.map((t) => Object.values(t.attributes.name)[0]).filter(Boolean),
-        });
+        }, manga.attributes.latestUploadedChapter ?? undefined);
         toast.success('Added to library');
       }
     } finally {
@@ -352,6 +362,7 @@
               {/if}
             {/if}
           </div>
+
         </div>
       </div>
 
@@ -366,14 +377,14 @@
       <!-- Chapters -->
       <div class="mt-8 pb-4">
         <!-- Section header -->
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between mb-1">
           <div class="flex items-center gap-2">
             <h2 class="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">
               Chapters
             </h2>
             {#if visibleChapters.length > 0}
               <span class="text-xs text-[var(--color-text-muted)]">
-                {visibleChapters.length} · {readChapterIds.size} read
+                {readChapterIds.size} / {visibleChapters.length} read
               </span>
             {/if}
           </div>
@@ -406,6 +417,17 @@
             {/if}
           {/if}
         </div>
+
+        <!-- Progress bar -->
+        {#if !loadingChapters && visibleChapters.length > 0}
+          {@const pct = Math.min(100, Math.round((readChapterIds.size / visibleChapters.length) * 100))}
+          <div class="mb-3 h-1.5 bg-[var(--color-bg-elevated)] rounded-full overflow-hidden">
+            <div
+              class="h-full rounded-full transition-all duration-500 {pct >= 100 ? 'bg-green-500' : 'bg-[var(--color-accent)]'}"
+              style="width: {pct}%"
+            ></div>
+          </div>
+        {/if}
 
         {#if loadingChapters}
           <div class="flex items-center justify-center py-12">

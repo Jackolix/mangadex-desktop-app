@@ -124,9 +124,29 @@
         <div class="flex gap-4 overflow-x-auto pb-2">
           {#each library.entries.slice(0, 10) as entry}
             <a href="/manga/{entry.id}" class="flex-shrink-0 group">
-              <div class="w-28 h-40 rounded-[var(--radius-md)] overflow-hidden bg-[var(--color-bg-overlay)]">
+              <div class="relative w-28 h-40 rounded-[var(--radius-md)] overflow-hidden bg-[var(--color-bg-overlay)]">
                 {#if entry.coverUrl}
                   <img src={entry.coverUrl} alt={entry.title} class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                {/if}
+                <!-- NEW badge -->
+                {#if library.hasNewChapters(entry.id)}
+                  <div class="absolute top-1 right-1">
+                    <span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[var(--color-accent)] text-white shadow-sm">
+                      NEW
+                    </span>
+                  </div>
+                {/if}
+                <!-- Reading progress bar -->
+                {#if (library.progressSummary[entry.id] ?? 0) > 0 || (entry.totalChapters ?? 0) > 0}
+                  {@const readCount = library.progressSummary[entry.id] ?? 0}
+                  {@const totalChapters = entry.totalChapters ?? 0}
+                  {@const pct = totalChapters > 0 ? Math.min(100, Math.round((readCount / totalChapters) * 100)) : (readCount > 0 ? 8 : 0)}
+                  <div class="absolute bottom-0 left-0 right-0 h-2 bg-black/50">
+                    <div
+                      class="h-full transition-all duration-300 {pct >= 100 ? 'bg-green-500' : 'bg-[var(--color-accent)]'}"
+                      style="width: {pct}%"
+                    />
+                  </div>
                 {/if}
               </div>
               <p class="text-xs text-[var(--color-text-secondary)] mt-1.5 w-28 truncate group-hover:text-[var(--color-accent)] transition-colors">{entry.title}</p>

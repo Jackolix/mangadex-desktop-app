@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.svelte';
+  import { library } from '$lib/stores/library.svelte';
 
   const navItems = [
     {
@@ -63,9 +64,15 @@
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
           {@html item.icon}
         </svg>
+        <!-- New chapters notification dot for Library -->
+        {#if item.href === '/library' && library.newChapterCount > 0}
+          <div class="absolute top-1.5 right-1.5 min-w-[14px] h-[14px] rounded-full bg-[var(--color-accent)] flex items-center justify-center">
+            <span class="text-[8px] font-bold text-white leading-none px-0.5">{library.newChapterCount > 9 ? '9+' : library.newChapterCount}</span>
+          </div>
+        {/if}
         <!-- Tooltip -->
         <span class="absolute left-12 z-50 px-2 py-1 text-xs font-medium text-white bg-[var(--color-bg-overlay)] rounded-[var(--radius-sm)] whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-[var(--shadow-md)] border border-[var(--color-border)]">
-          {item.label}
+          {item.label}{item.href === '/library' && library.newChapterCount > 0 ? ` (${library.newChapterCount} new)` : ''}
         </span>
       </a>
     {/each}
