@@ -65,6 +65,8 @@
     "core:window:allow-close",
     "core:window:allow-is-maximized",
     "core:window:allow-is-minimized",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

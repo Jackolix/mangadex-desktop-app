@@ -10,6 +10,7 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { readerState } from '$lib/stores/reader.svelte';
 
   interface Props { children: Snippet; }
   let { children }: Props = $props();
@@ -56,8 +57,10 @@
 </script>
 
 <div class="relative flex h-screen w-screen overflow-hidden">
-  <!-- Invisible drag region across the top of the window -->
-  <div data-tauri-drag-region class="fixed top-0 left-0 right-0 h-[30px] z-[9998]" />
+  <!-- Invisible drag region across the top of the window — hidden in reader fullscreen -->
+  {#if !readerState.isFullscreen}
+    <div data-tauri-drag-region class="fixed top-0 left-0 right-0 h-[30px] z-[9998]" />
+  {/if}
 
   {#if !isReader}
     <Sidebar />
@@ -65,7 +68,9 @@
   <main class="flex-1 overflow-hidden">
     {@render children()}
   </main>
-  <WindowControls />
+  {#if !readerState.isFullscreen}
+    <WindowControls />
+  {/if}
 </div>
 
 <Toaster

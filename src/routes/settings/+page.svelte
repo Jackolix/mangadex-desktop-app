@@ -5,6 +5,8 @@
   import Input from '$lib/components/ui/Input.svelte';
   import Select from '$lib/components/ui/Select.svelte';
   import { toast } from 'svelte-sonner';
+  import { openPath } from '@tauri-apps/plugin-opener';
+  import { appDataDir } from '@tauri-apps/api/path';
 
   // Login form
   let username = $state('');
@@ -276,6 +278,26 @@
             class="w-24"
             onchange={(e: Event) => settingsStore.update({ epubChaptersPerPart: Number((e.target as HTMLSelectElement).value) })}
           />
+        </div>
+      </div>
+    </section>
+
+    <!-- Data -->
+    <section class="mb-8">
+      <h2 class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Data</h2>
+      <div class="bg-[var(--color-bg-elevated)] rounded-[var(--radius-lg)] divide-y divide-[var(--color-border)]">
+        <div class="flex items-center justify-between px-5 py-4">
+          <div>
+            <p class="text-sm text-[var(--color-text-primary)]">Open Data Folder</p>
+            <p class="text-xs text-[var(--color-text-muted)] mt-0.5">Library database, settings, and downloaded files</p>
+          </div>
+          <Button variant="secondary" size="sm" onclick={async () => {
+            try {
+              await openPath(await appDataDir());
+            } catch {
+              toast.error('Could not open data folder');
+            }
+          }}>Open</Button>
         </div>
       </div>
     </section>

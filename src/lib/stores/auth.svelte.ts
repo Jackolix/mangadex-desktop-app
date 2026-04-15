@@ -22,13 +22,15 @@ async function init() {
     const s = await getStore();
     const access = await s.get<string>('access_token');
     const refresh = await s.get<string>('refresh_token');
-    if (access && refresh) {
-      setTokens(access, refresh);
+    if (refresh) {
+      // Set both tokens so refreshSession can use the in-memory refresh token
+      // even if access_token is missing or expired
+      setTokens(access ?? '', refresh);
       try {
         const me = await getMe();
         user = me;
       } catch {
-        // Access token likely expired — try refreshing before giving up
+        // Access token missing or expired — try refreshing before giving up
         const refreshed = await tryRefresh();
         if (refreshed) {
           const me = await getMe();

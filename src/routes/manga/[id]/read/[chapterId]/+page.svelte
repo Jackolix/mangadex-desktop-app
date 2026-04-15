@@ -8,6 +8,10 @@
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { clamp } from '$lib/utils';
   import { onDestroy } from 'svelte';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { readerState } from '$lib/stores/reader.svelte';
+
+  const win = getCurrentWindow();
 
   const mangaId = $derived(page.params.id!);
   const chapterId = $derived(page.params.chapterId!);
@@ -121,6 +125,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.ctrlKey && e.key === '0') { e.preventDefault(); resetZoom(); return; }
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFullscreen(); return; }
     if (zoom > 1) return; // Arrow keys pan when zoomed — let browser handle
     switch (e.key) {
       case 'ArrowRight':
@@ -135,6 +140,7 @@
         prevPage();
         break;
       case 'Escape':
+        if (isFullscreen) { toggleFullscreen(); return; }
         goto(`/manga/${mangaId}`);
         break;
     }
@@ -149,6 +155,10 @@
   onDestroy(() => {
     if (controlsTimeout) clearTimeout(controlsTimeout);
     if (isOffline) pages.forEach((url) => URL.revokeObjectURL(url));
+    if (isFullscreen) {
+      win.setFullscreen(false);
+      readerState.setFullscreen(false);
+    }
   });
 
   const isLongStrip = $derived(settingsStore.value.readerMode === 'longstrip');
@@ -168,6 +178,28 @@
   let hasDragged = false;
 
   let readerContainerEl = $state<HTMLDivElement | null>(null);
+
+  // ── Fullscreen ────────────────────────────────────────────────────────────
+  let isFullscreen = $state(false);
+
+  async function toggleFullscreen() {
+    const next = !isFullscreen;
+    await win.setFullscreen(next);
+    isFullscreen = next;
+    readerState.setFullscreen(next);
+  }
+
+  // Keep state in sync if the user exits fullscreen via OS (e.g. pressing Esc at OS level)
+  $effect(() => {
+    const unlisten = win.onResized(async () => {
+      const fs = await win.isFullscreen();
+      if (fs !== isFullscreen) {
+        isFullscreen = fs;
+        readerState.setFullscreen(fs);
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  });
 
   function resetZoom() {
     zoom = 1;
@@ -306,6 +338,25 @@
         Next Ch.
       </button>
     </div>
+
+    <!-- Fullscreen toggle -->
+    <button
+      onclick={toggleFullscreen}
+      class="p-1.5 text-white/70 hover:text-white transition-colors rounded"
+      title="{isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} (F)"
+    >
+      {#if isFullscreen}
+        <!-- Compress icon -->
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+        </svg>
+      {:else}
+        <!-- Expand icon -->
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+        </svg>
+      {/if}
+    </button>
   </div>
 
   <!-- Progress bar -->
