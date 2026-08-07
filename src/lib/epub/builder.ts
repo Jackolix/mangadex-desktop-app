@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { readDir, readFile, BaseDirectory } from '@tauri-apps/plugin-fs';
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { getMangaTitle, getMangaDescription, getAtHomeServer } from '$lib/api/mangadex';
+import { fetchImage } from '$lib/api/images';
 import type { MangaWithCover, Chapter } from '$lib/api/types';
 import {
   buildMimetype,
@@ -24,7 +24,7 @@ export interface EpubExportOptions {
   /** Series position used for calibre:series_index so readers like Kavita group correctly */
   seriesIndex?: number;
   /** Pre-fetched cover bytes for this volume; pass null to skip cover */
-  volumeCoverBytes?: ArrayBuffer | null;
+  volumeCoverBytes?: Uint8Array | null;
   onProgress?: (step: string, pct: number) => void;
 }
 
@@ -101,9 +101,7 @@ async function fetchRemotePages(
   for (let i = 0; i < filenames.length; i++) {
     const filename = filenames[i];
     const url = `${server.baseUrl}/${quality}/${server.chapter.hash}/${filename}`;
-    const resp = await tauriFetch(url);
-    if (!resp.ok) throw new Error(`Page ${i + 1} fetch failed: HTTP ${resp.status}`);
-    const bytes = new Uint8Array(await resp.arrayBuffer());
+    const bytes = await fetchImage(url);
     pages.push({ name: filename, bytes });
     onPageProgress?.(i + 1, filenames.length);
   }
@@ -126,7 +124,7 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
     .map((t) => Object.values(t.attributes.name)[0])
     .filter(Boolean) as string[];
 
-  let coverBytes: ArrayBuffer | null = null;
+  let coverBytes: Uint8Array | null = null;
 
   if ('volumeCoverBytes' in opts) {
     // Caller already fetched (or decided to skip) the cover
@@ -135,8 +133,7 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
     onProgress?.('Fetching cover image…', 0);
     if (manga.coverUrl) {
       try {
-        const res = await tauriFetch(manga.coverUrl);
-        if (res.ok) coverBytes = await res.arrayBuffer();
+        coverBytes = await fetchImage(manga.coverUrl);
       } catch {
         // offline — export without cover
       }

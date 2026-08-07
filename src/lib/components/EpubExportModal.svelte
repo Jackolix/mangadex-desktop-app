@@ -1,11 +1,11 @@
 <script lang="ts">
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
   import { writeFile } from '@tauri-apps/plugin-fs';
-  import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
   import { toast } from 'svelte-sonner';
   import Button from '$lib/components/ui/Button.svelte';
   import { downloadsStore } from '$lib/stores/downloads.svelte';
   import { getMangaTitle, getMangaVolumeCoverUrls } from '$lib/api/mangadex';
+  import { fetchImage } from '$lib/api/images';
   import { settingsStore } from '$lib/stores/settings.svelte';
   import { buildEpub } from '$lib/epub/builder';
   import { epubExports } from '$lib/stores/epubExports.svelte';
@@ -207,13 +207,12 @@
           epubExports.update(capturedManga.id, step, overallPct);
 
           // Fetch cover for this volume
-          let volumeCoverBytes: ArrayBuffer | null = null;
+          let volumeCoverBytes: Uint8Array | null = null;
           const coverUrl = coverVolKey ? volCoverUrls.get(coverVolKey) : undefined;
           const urlToFetch = coverUrl ?? capturedManga.coverUrl;
           if (urlToFetch) {
             try {
-              const res = await tauriFetch(urlToFetch);
-              if (res.ok) volumeCoverBytes = await res.arrayBuffer();
+              volumeCoverBytes = await fetchImage(urlToFetch);
             } catch {
               // skip cover
             }

@@ -1,8 +1,8 @@
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
-import { mkdir, writeFile, exists, remove, BaseDirectory } from '@tauri-apps/plugin-fs';
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { mkdir, remove, BaseDirectory } from '@tauri-apps/plugin-fs';
 import { getAtHomeServer } from '$lib/api/mangadex';
+import { downloadPage as savePageToDisk, purgePlaceholderDownloads } from '$lib/api/images';
 import type { DownloadEntry } from '$lib/api/types';
 import { settingsStore } from '$lib/stores/settings.svelte';
 
@@ -32,7 +32,28 @@ let mangaBatchQueue = $state<Array<{ mangaId: string; mangaTitle: string }>>([])
 let activeBatch: { mangaId: string; pendingIds: Set<string> } | null = null;
 
 async function init() {
+  await purgeBrokenDownloads();
   await loadDownloads();
+}
+
+/**
+ * Earlier builds saved MangaDex's placeholder image instead of real pages (see
+ * `$lib/api/images`). Drop those chapters so they are re-downloaded for real —
+ * otherwise the reader and epub export keep serving them from disk.
+ */
+async function purgeBrokenDownloads() {
+  try {
+    const purged = await purgePlaceholderDownloads();
+    if (purged.length === 0) return;
+
+    const database = await getDb();
+    for (const { chapterId } of purged) {
+      await database.execute('DELETE FROM downloads WHERE chapter_id = ?', [chapterId]);
+    }
+    console.warn(`[download] Purged ${purged.length} chapter(s) containing placeholder images`);
+  } catch (e) {
+    console.error('[download] placeholder purge failed:', e);
+  }
 }
 
 async function loadDownloads() {
@@ -164,16 +185,9 @@ async function startDownload(mangaId: string, chapterId: string) {
     async function downloadPage(i: number, filename: string) {
       const url = `${server.baseUrl}/${quality}/${server.chapter.hash}/${filename}`;
       const ext = filename.split('.').pop() ?? 'jpg';
-      const pagePath = `${dir}/${String(i).padStart(3, '0')}.${ext}`;
 
-      const pageExists = await exists(pagePath, { baseDir: BaseDirectory.AppData });
-      if (!pageExists) {
-        const resp = await tauriFetch(url);
-        if (!resp.ok) throw new Error(`Page ${i + 1} fetch failed: HTTP ${resp.status}`);
-        await writeFile(pagePath, new Uint8Array(await resp.arrayBuffer()), {
-          baseDir: BaseDirectory.AppData,
-        });
-      }
+      // Rust skips pages already on disk and writes the rest itself.
+      await savePageToDisk(url, mangaId, chapterId, `${String(i).padStart(3, '0')}.${ext}`);
 
       completedCount++;
       downloads = downloads.map((d) =>
