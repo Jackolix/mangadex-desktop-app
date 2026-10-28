@@ -1,6 +1,5 @@
 <script lang="ts">
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { writeFile } from '@tauri-apps/plugin-fs';
   import { toast } from 'svelte-sonner';
   import Button from '$lib/components/ui/Button.svelte';
   import { downloadsStore } from '$lib/stores/downloads.svelte';
@@ -219,21 +218,20 @@
           }
 
           try {
-            const bytes = await buildEpub({
+            const sep = capturedOutDir.includes('/') ? '/' : '\\';
+            await buildEpub({
               manga: capturedManga,
               selectedChapters: chapters,
               volumeTitle,
               seriesIndex,
               volumeCoverBytes,
+              outPath: `${capturedOutDir}${sep}${fileName}`,
               onProgress: (substep, subPct) => {
                 const blended = Math.round(overallPct + (subPct / exportGroups.length));
                 epubExports.update(capturedManga.id, substep, blended);
                 toast.loading(substep, { id: toastId });
               },
             });
-
-            const sep = capturedOutDir.includes('/') ? '/' : '\\';
-            await writeFile(`${capturedOutDir}${sep}${fileName}`, bytes);
             exported++;
           } catch (e) {
             console.error(`[epub] Failed group "${volumeTitle}":`, e);

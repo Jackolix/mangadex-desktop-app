@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { readDir, readFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+import { readDir, readFile, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
 import { getMangaTitle, getMangaDescription, getAtHomeServer } from '$lib/api/mangadex';
 import { fetchImage } from '$lib/api/images';
 import type { MangaWithCover, Chapter } from '$lib/api/types';
@@ -25,6 +25,8 @@ export interface EpubExportOptions {
   seriesIndex?: number;
   /** Pre-fetched cover bytes for this volume; pass null to skip cover */
   volumeCoverBytes?: Uint8Array | null;
+  /** Absolute path the .epub is written to */
+  outPath: string;
   onProgress?: (step: string, pct: number) => void;
 }
 
@@ -108,7 +110,7 @@ async function fetchRemotePages(
   return pages;
 }
 
-export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
+export async function buildEpub(opts: EpubExportOptions): Promise<void> {
   const { manga, onProgress } = opts;
 
   const sorted = [...opts.selectedChapters].sort((a, b) => sortKey(a) - sortKey(b));
@@ -235,16 +237,88 @@ export async function buildEpub(opts: EpubExportOptions): Promise<Uint8Array> {
     buildContentOpf({ mangaId: manga.id, title, seriesTitle, seriesIndex, author, description, language, year, tags, chapters: manifestItems, hasCover })
   );
 
-  onProgress?.('Compressing…', 90);
+  onProgress?.('Writing file…', 90);
 
-  // Only text files (XHTML, XML, CSS) benefit from DEFLATE — images are already
-  // stored uncompressed above, so this pass is fast and low-memory.
-  const result = await zip.generateAsync({
-    type: 'uint8array',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 6 },
+  await writeZipToFile(zip, opts.outPath, (percent) => {
+    onProgress?.('Writing file…', Math.round(90 + percent * 0.1));
   });
 
   onProgress?.('Done', 100);
-  return result;
+}
+
+/** Bytes buffered before each append to disk. */
+const WRITE_CHUNK_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Stream the zip to disk in chunks instead of generating one buffer.
+ *
+ * A volume can be several hundred MB. Generating it whole doubles peak memory
+ * (JSZip's copy of the images plus the output buffer), and handing that buffer
+ * to a single `writeFile` IPC call can stall forever on Windows — the export
+ * sits at "Done" and the file never lands.
+ */
+async function writeZipToFile(
+  zip: JSZip,
+  path: string,
+  onPercent: (percent: number) => void
+): Promise<void> {
+  // Truncate (or create) first; every chunk after this is appended.
+  await writeFile(path, new Uint8Array(0));
+
+  await new Promise<void>((resolve, reject) => {
+    let parts: Uint8Array[] = [];
+    let size = 0;
+    let failed = false;
+    // Appends run one at a time, in order.
+    let writes: Promise<void> = Promise.resolve();
+
+    const takeBuffer = (): Uint8Array => {
+      const buf = new Uint8Array(size);
+      let offset = 0;
+      for (const part of parts) {
+        buf.set(part, offset);
+        offset += part.length;
+      }
+      parts = [];
+      size = 0;
+      return buf;
+    };
+
+    const fail = (e: unknown) => {
+      if (failed) return;
+      failed = true;
+      stream.pause();
+      reject(e);
+    };
+
+    // Only text files (XHTML, XML, CSS) get DEFLATE — images are added with
+    // STORE above, since they are already compressed.
+    const stream = zip.generateInternalStream({
+      type: 'uint8array',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+    });
+
+    stream.on('data', (chunk, meta) => {
+      parts.push(chunk);
+      size += chunk.length;
+      onPercent(meta.percent);
+      if (size < WRITE_CHUNK_BYTES) return;
+
+      stream.pause();
+      const buf = takeBuffer();
+      writes = writes.then(() => writeFile(path, buf, { append: true }));
+      writes.then(() => !failed && stream.resume(), fail);
+    });
+
+    stream.on('error', fail);
+
+    stream.on('end', () => {
+      const buf = takeBuffer();
+      writes = writes.then(() => writeFile(path, buf, { append: true }));
+      writes.then(() => !failed && resolve(), fail);
+    });
+
+    stream.resume();
+  });
 }

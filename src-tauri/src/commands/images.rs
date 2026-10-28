@@ -3,6 +3,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 /// Image fetching deliberately does NOT go through `tauri-plugin-http`.
@@ -20,6 +21,10 @@ fn client() -> &'static Client {
     CLIENT.get_or_init(|| {
         Client::builder()
             .user_agent(concat!("mangadex-desktop/", env!("CARGO_PKG_VERSION")))
+            // A stalled @Home node must fail the page rather than hang the
+            // whole download or epub export forever.
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(60))
             .build()
             .unwrap_or_else(|_| Client::new())
     })
